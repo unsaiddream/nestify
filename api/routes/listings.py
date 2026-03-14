@@ -2,11 +2,47 @@
 Роуты для получения объявлений и клиентов из БД.
 """
 
+import asyncio
+import re
+import urllib.request
+from concurrent.futures import ThreadPoolExecutor
+
 import aiosqlite
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from database.db import DB_PATH
+
+_preview_executor = ThreadPoolExecutor(max_workers=4)
+_preview_cache: dict[int, str | None] = {}  # listing_id → image_url
+
+
+def _fetch_og_image(url: str) -> str | None:
+    """Синхронно загружает страницу krisha.kz и достаёт OG-изображение."""
+    try:
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                              "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
+                "Accept-Language": "ru,en;q=0.9",
+            },
+        )
+        with urllib.request.urlopen(req, timeout=6) as resp:
+            html = resp.read(80_000).decode("utf-8", errors="ignore")
+        # og:image может быть в двух форматах атрибутов
+        for pattern in [
+            r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
+            r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
+        ]:
+            m = re.search(pattern, html, re.IGNORECASE)
+            if m:
+                img = m.group(1).strip()
+                if img.startswith("http"):
+                    return img
+    except Exception:
+        pass
+    return None
 
 router = APIRouter(prefix="/listings", tags=["listings"])
 
@@ -112,6 +148,40 @@ async def get_messages(limit: int = 50):
         ) as cur:
             rows = await cur.fetchall()
     return [dict(r) for r in rows]
+
+
+@router.get("/{listing_id}/preview")
+async def get_listing_preview(listing_id: int):
+    """Возвращает превью-изображение объявления (OG-image с krisha.kz)."""
+    # Сначала проверяем кэш
+    if listing_id in _preview_cache:
+        return {"image_url": _preview_cache[listing_id]}
+
+    # Берём thumbnail из БД или URL для запроса
+    async with aiosqlite.connect(DB_PATH) as db:
+        async with db.execute(
+            "SELECT url, thumbnail FROM listings WHERE id = ?", (listing_id,)
+        ) as cur:
+            row = await cur.fetchone()
+
+    if not row:
+        raise HTTPException(status_code=404, detail="Listing not found")
+
+    listing_url, thumbnail = row
+
+    # Если thumbnail уже сохранён — возвращаем сразу
+    if thumbnail:
+        _preview_cache[listing_id] = thumbnail
+        return {"image_url": thumbnail}
+
+    # Иначе — fetch OG image в thread pool
+    if not listing_url:
+        return {"image_url": None}
+
+    loop = asyncio.get_event_loop()
+    image_url = await loop.run_in_executor(_preview_executor, _fetch_og_image, listing_url)
+    _preview_cache[listing_id] = image_url
+    return {"image_url": image_url}
 
 
 @router.get("/stats")

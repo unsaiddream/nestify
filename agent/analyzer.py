@@ -134,10 +134,11 @@ async def _save_listing(raw, client_id: int) -> int:
     async with aiosqlite.connect(DB_PATH) as db:
         cur = await db.execute(
             """INSERT OR IGNORE INTO listings
-               (client_id, krisha_id, url, title, price, area, rooms, district, description, status)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'new')""",
+               (client_id, krisha_id, url, title, price, area, rooms, district, description, thumbnail, status)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'new')""",
             (client_id, raw.krisha_id, raw.url, raw.title,
-             raw.price, raw.area, raw.rooms, raw.district, raw.description),
+             raw.price, raw.area, raw.rooms, raw.district, raw.description,
+             getattr(raw, 'thumbnail', None)),
         )
         await db.commit()
         return cur.lastrowid

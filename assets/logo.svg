@@ -1,0 +1,70 @@
+<svg viewBox="0 0 80 80" xmlns="http://www.w3.org/2000/svg" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4f8ef7"/>
+      <stop offset="100%" stop-color="#6366f1"/>
+    </linearGradient>
+    <linearGradient id="shine" x1="0" y1="0" x2="0" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.18"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="dot" x1="0" y1="0" x2="80" y2="80" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#3ecf8e"/>
+      <stop offset="100%" stop-color="#4fb6f7"/>
+    </linearGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#1a1e3a" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+
+  <!-- Background: rounded square with gradient -->
+  <rect width="80" height="80" rx="20" fill="url(#bg)" filter="url(#shadow)"/>
+  <!-- Top shine overlay -->
+  <rect width="80" height="80" rx="20" fill="url(#shine)"/>
+
+  <!-- House body (subtle filled rectangle) -->
+  <rect x="17" y="37" width="46" height="27" rx="3.5"
+        fill="white" fill-opacity="0.12"/>
+
+  <!-- Roof chevron — main shape -->
+  <path d="M10 39 L40 14 L70 39"
+        stroke="white" stroke-width="3.5"
+        stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Left wall vertical line -->
+  <line x1="17" y1="38" x2="17" y2="64"
+        stroke="white" stroke-width="1.5" stroke-opacity="0.3" stroke-linecap="round"/>
+  <!-- Right wall vertical line -->
+  <line x1="63" y1="38" x2="63" y2="64"
+        stroke="white" stroke-width="1.5" stroke-opacity="0.3" stroke-linecap="round"/>
+  <!-- Floor line -->
+  <line x1="17" y1="64" x2="63" y2="64"
+        stroke="white" stroke-width="1.5" stroke-opacity="0.3" stroke-linecap="round"/>
+
+  <!-- Door -->
+  <rect x="32.5" y="47" width="15" height="17" rx="2.5"
+        fill="white" fill-opacity="0.82"/>
+
+  <!-- Left window -->
+  <rect x="19" y="42" width="10" height="9" rx="2"
+        fill="white" fill-opacity="0.48"/>
+  <!-- Right window -->
+  <rect x="51" y="42" width="10" height="9" rx="2"
+        fill="white" fill-opacity="0.48"/>
+
+  <!-- Peak dot — teal AI signal with glow -->
+  <circle cx="40" cy="14" r="5.5" fill="url(#dot)" filter="url(#glow)"/>
+  <circle cx="40" cy="14" r="2.5" fill="white" fill-opacity="0.95"/>
+
+  <!-- Signal rings (subtle) -->
+  <circle cx="40" cy="14" r="8.5" stroke="white" stroke-width="0.8" stroke-opacity="0.2" fill="none"/>
+  <circle cx="40" cy="14" r="12" stroke="white" stroke-width="0.5" stroke-opacity="0.1" fill="none"/>
+</svg>
