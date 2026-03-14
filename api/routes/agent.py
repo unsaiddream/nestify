@@ -73,6 +73,30 @@ async def stop_agent():
     return {"status": "stopped"}
 
 
+@router.post("/install-playwright")
+async def install_playwright():
+    """Запускает 'playwright install chromium' — скачивает браузер."""
+    import asyncio.subprocess as asp
+    try:
+        proc = await asp.create_subprocess_exec(
+            "playwright", "install", "chromium",
+            stdout=asp.PIPE,
+            stderr=asp.STDOUT,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=180)
+        output = stdout.decode(errors="replace") if stdout else ""
+        if proc.returncode == 0:
+            return {"status": "ok", "message": "Chromium успешно установлен", "output": output}
+        else:
+            return {"status": "error", "message": "Ошибка установки", "output": output}
+    except asyncio.TimeoutError:
+        return {"status": "error", "message": "Таймаут — установка заняла слишком долго"}
+    except FileNotFoundError:
+        return {"status": "error", "message": "Команда 'playwright' не найдена. Запустите: pip install playwright"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
 @router.post("/open-browser")
 async def open_browser():
     """Открывает браузер с Krisha.kz без запуска сканирования."""
