@@ -292,15 +292,15 @@ async def send_message(listing_url: str, message_text: str) -> bool:
     page = await new_page()
     try:
         await page.goto(listing_url, wait_until="domcontentloaded", timeout=30_000)
-        await asyncio.sleep(1.5)
+        await asyncio.sleep(2)
 
         # Пробуем найти кнопку "Написать" / чат
         btn_selectors = [
-            "button.send-message",
-            "[data-name='sendMessage']",
-            ".offer-chat__button",
             "button:has-text('Написать')",
             "a:has-text('Написать')",
+            "[data-name='sendMessage']",
+            "button.send-message",
+            ".offer-chat__button",
             ".contacts__btn-message",
             "[class*='message'][class*='btn']",
             "[class*='chat'][class*='btn']",
@@ -318,59 +318,77 @@ async def send_message(listing_url: str, message_text: str) -> bool:
         if not btn:
             return False
 
+        # Кликаем и ждём загрузки страницы чата (Krisha открывает отдельную страницу)
         await btn.click()
-        await asyncio.sleep(1)
+        try:
+            await page.wait_for_load_state("domcontentloaded", timeout=10_000)
+        except Exception:
+            pass
+        await asyncio.sleep(2)
 
-        # Ищем поле ввода сообщения
+        # Ищем поле ввода — может быть textarea ИЛИ input
         input_selectors = [
-            "textarea.send-message__textarea",
-            ".offer-chat__input textarea",
-            "[class*='chat'] textarea",
-            "[class*='message'] textarea",
             "textarea[placeholder*='сообщен']",
             "textarea[placeholder*='Сообщен']",
+            "textarea[placeholder*='Написать']",
+            "input[placeholder*='сообщен']",
+            "input[placeholder*='Сообщен']",
+            "input[placeholder*='Написать']",
+            "textarea.send-message__textarea",
+            ".offer-chat__input textarea",
+            ".offer-chat__input input",
+            "[class*='chat'] textarea",
+            "[class*='chat'] input[type='text']",
+            "[class*='message'] textarea",
+            "[class*='input'] textarea",
+            "textarea",
         ]
 
-        textarea = None
+        field = None
         for sel in input_selectors:
             try:
-                textarea = await page.wait_for_selector(sel, timeout=3_000)
-                if textarea:
+                field = await page.wait_for_selector(sel, timeout=3_000)
+                if field:
                     break
             except Exception:
                 continue
 
-        if not textarea:
+        if not field:
             return False
 
-        await textarea.click()
-        await textarea.fill(message_text)
+        await field.click()
+        await field.fill(message_text)
         await asyncio.sleep(0.8)
 
-        # Кнопка отправки
+        # Сначала пробуем кнопку отправки, иначе — Enter
         send_selectors = [
             "button[type='submit']",
             "button:has-text('Отправить')",
             ".send-message__submit",
             "[class*='submit']",
+            # кнопка-стрелка рядом с полем ввода (svg-иконка)
             "[class*='send'][class*='button']",
+            "[class*='send-btn']",
+            "button svg",  # кнопка с иконкой
         ]
 
         send_btn = None
         for sel in send_selectors:
             try:
-                send_btn = await page.query_selector(sel)
-                if send_btn:
+                candidate = await page.query_selector(sel)
+                if candidate:
+                    send_btn = candidate
                     break
             except Exception:
                 continue
 
-        if not send_btn:
-            return False
+        if send_btn:
+            await send_btn.click()
+        else:
+            # Fallback: Enter в поле ввода
+            await field.press("Enter")
 
-        await send_btn.click()
         await asyncio.sleep(1.5)
-
         return True
 
     except Exception:
