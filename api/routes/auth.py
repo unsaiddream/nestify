@@ -81,3 +81,27 @@ async def test_gemini():
         return {"status": "ok", "message": f"[{model_name}] {response.text.strip()[:100]}"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
+
+
+@router.get("/list-models")
+async def list_gemini_models():
+    """Возвращает список доступных моделей Gemini для текущего API ключа."""
+    token = await get_setting("gemini_token")
+    if not token:
+        return {"status": "error", "message": "Токен не настроен", "models": []}
+    try:
+        import asyncio
+        import google.generativeai as genai
+        genai.configure(api_key=token)
+        models_raw = await asyncio.to_thread(lambda: list(genai.list_models()))
+        # Фильтруем только модели которые поддерживают generateContent
+        models = [
+            m.name.replace("models/", "")
+            for m in models_raw
+            if "generateContent" in (m.supported_generation_methods or [])
+        ]
+        # Сортируем: gemini-2.5 сначала
+        models.sort(key=lambda x: (not x.startswith("gemini-2.5"), not x.startswith("gemini-2"), x))
+        return {"status": "ok", "models": models}
+    except Exception as e:
+        return {"status": "error", "message": str(e), "models": []}

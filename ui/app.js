@@ -459,17 +459,40 @@ async function loadSettingsPage() {
   } catch (_) {}
   try {
     const { model } = await api('GET', '/api/auth/gemini-model');
-    if (model) {
-      document.getElementById('settings-model').value = model;
-      const sel = document.getElementById('settings-model-select');
-      // Выбираем в дропдауне если есть такой вариант
-      if (sel) {
-        const opt = [...sel.options].find(o => o.value === model);
-        if (opt) sel.value = model;
-      }
-    }
+    if (model) document.getElementById('settings-model').value = model;
   } catch (_) {}
+  // Автоматически загружаем список моделей из API
+  loadGeminiModels();
 }
+
+async function loadGeminiModels() {
+  const btn = document.getElementById('btn-load-models');
+  const sel = document.getElementById('settings-model-select');
+  const currentModel = document.getElementById('settings-model').value;
+  if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+  try {
+    const data = await api('GET', '/api/auth/list-models');
+    if (data.status === 'ok' && data.models.length) {
+      sel.innerHTML = data.models.map(m => `<option value="${m}">${m}</option>`).join('');
+      // Выбираем текущую модель если она в списке
+      const saved = currentModel || (await api('GET', '/api/auth/gemini-model').catch(() => ({}))).model;
+      const match = [...sel.options].find(o => o.value === saved);
+      if (match) sel.value = saved;
+      else sel.selectedIndex = 0;
+      // Синхронизируем поле ввода с выбранным значением
+      if (!currentModel) document.getElementById('settings-model').value = sel.value;
+      sel.onchange = () => { document.getElementById('settings-model').value = sel.value; };
+    } else {
+      sel.innerHTML = `<option value="">⚠ ${data.message || 'Ошибка загрузки'}</option>`;
+    }
+  } catch (e) {
+    sel.innerHTML = `<option value="">⚠ ${e.message}</option>`;
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '🔄'; }
+  }
+}
+
+document.getElementById('btn-load-models').addEventListener('click', loadGeminiModels);
 
 document.getElementById('btn-update-token').addEventListener('click', async () => {
   const token = document.getElementById('settings-token').value.trim();
