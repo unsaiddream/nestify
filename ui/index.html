@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
 
@@ -65,6 +66,9 @@
       </button>
       <button class="nav-item" data-page="messages">
         <span>💬</span> Сообщения
+      </button>
+      <button class="nav-item" data-page="map">
+        <span>🗺️</span> Карта
       </button>
 
       <div class="sidebar-bottom">
@@ -200,6 +204,13 @@
               </select>
             </div>
           </div>
+          <div class="field" style="grid-column:1/-1;">
+            <label>Шаблон сообщения продавцу</label>
+            <textarea id="c-message-template" rows="3"
+              placeholder="Здравствуйте! Я риелтор, ищу квартиру для клиента. Интересует ваш объект, можно подробнее?"
+              style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:14px;padding:10px 12px;outline:none;resize:vertical;font-family:inherit;width:100%;"></textarea>
+            <span style="font-size:11px;color:var(--text-muted);">Gemini будет адаптировать это сообщение под каждое объявление. Если оставить пустым — Gemini напишет сам.</span>
+          </div>
           <button class="btn btn-primary mt-2" id="btn-add-client" style="width:auto;">
             Добавить клиента
           </button>
@@ -272,6 +283,36 @@
         </div>
       </div>
 
+      <!-- Страница: Карта -->
+      <div id="page-map" class="hidden" style="height:100%;display:flex;flex-direction:column;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+          <h2 class="page-title" style="margin:0;">Карта поиска</h2>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <select id="map-client-select" style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:8px 12px;font-size:13px;outline:none;">
+              <option value="">— выберите клиента —</option>
+            </select>
+            <button class="btn btn-primary" id="btn-draw-polygon" style="padding:8px 16px;">
+              ✏️ Обвести область
+            </button>
+            <button class="btn btn-ghost" id="btn-clear-polygon" style="padding:8px 16px;">
+              🗑 Очистить
+            </button>
+            <button class="btn btn-primary" id="btn-save-polygon" style="padding:8px 16px;background:var(--success);" disabled>
+              💾 Сохранить для клиента
+            </button>
+          </div>
+        </div>
+
+        <div id="map-hint" style="font-size:12px;color:var(--text-muted);margin-bottom:10px;padding:8px 12px;background:var(--surface2);border-radius:6px;display:none;">
+          Кликайте на карте чтобы добавить точки полигона. Двойной клик или кнопка "Завершить" — закроет область.
+          <button id="btn-finish-polygon" class="btn btn-ghost" style="padding:4px 12px;font-size:12px;margin-left:8px;">Завершить ✓</button>
+        </div>
+
+        <div id="map-container" style="flex:1;min-height:500px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border);"></div>
+
+        <div id="map-polygon-info" style="margin-top:10px;font-size:12px;color:var(--text-muted);"></div>
+      </div>
+
       <!-- Страница: Настройки -->
       <div id="page-settings" class="hidden">
         <h2 class="page-title">Настройки</h2>
@@ -308,6 +349,7 @@
 <!-- Toast уведомление -->
 <div class="toast" id="toast"></div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

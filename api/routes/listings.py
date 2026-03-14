@@ -39,6 +39,8 @@ class ClientRequest(BaseModel):
     area_max: int | None = None
     rooms: str | None = None
     deal_type: str = "buy"
+    area_polygon: str | None = None       # "lat1,lon1,lat2,lon2,..." координаты полигона
+    message_template: str | None = None   # шаблон сообщения продавцу
 
 
 @router.get("/clients")
@@ -56,13 +58,31 @@ async def create_client(body: ClientRequest):
     """Создаёт нового клиента с параметрами поиска."""
     async with aiosqlite.connect(DB_PATH) as db:
         cur = await db.execute(
-            """INSERT INTO clients (name, district, budget_min, budget_max, area_min, area_max, rooms, deal_type)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO clients
+               (name, district, budget_min, budget_max, area_min, area_max, rooms, deal_type, area_polygon, message_template)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (body.name, body.district, body.budget_min, body.budget_max,
-             body.area_min, body.area_max, body.rooms, body.deal_type),
+             body.area_min, body.area_max, body.rooms, body.deal_type,
+             body.area_polygon, body.message_template),
         )
         await db.commit()
         return {"id": cur.lastrowid, "name": body.name}
+
+
+class PolygonUpdate(BaseModel):
+    area_polygon: str  # "lat1,lon1,lat2,lon2,..."
+
+
+@router.patch("/clients/{client_id}/polygon")
+async def update_client_polygon(client_id: int, body: PolygonUpdate):
+    """Сохраняет нарисованный на карте полигон для клиента."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE clients SET area_polygon = ? WHERE id = ?",
+            (body.area_polygon, client_id),
+        )
+        await db.commit()
+    return {"status": "ok"}
 
 
 @router.delete("/clients/{client_id}")

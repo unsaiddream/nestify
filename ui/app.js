@@ -87,6 +87,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if (btn.dataset.page === 'clients')  loadClients();
     if (btn.dataset.page === 'messages') loadMessages();
     if (btn.dataset.page === 'settings') loadSettingsPage();
+    if (btn.dataset.page === 'map')      initMap();
   });
 });
 
@@ -184,14 +185,15 @@ async function loadClients() {
 
 document.getElementById('btn-add-client').addEventListener('click', async () => {
   const body = {
-    name:       document.getElementById('c-name').value.trim(),
-    district:   document.getElementById('c-district').value.trim() || null,
-    budget_min: parseInt(document.getElementById('c-budget-min').value) || null,
-    budget_max: parseInt(document.getElementById('c-budget-max').value) || null,
-    area_min:   parseInt(document.getElementById('c-area-min').value)   || null,
-    area_max:   parseInt(document.getElementById('c-area-max').value)   || null,
-    rooms:      document.getElementById('c-rooms').value     || null,
-    deal_type:  document.getElementById('c-deal-type').value,
+    name:             document.getElementById('c-name').value.trim(),
+    district:         document.getElementById('c-district').value.trim() || null,
+    budget_min:       parseInt(document.getElementById('c-budget-min').value) || null,
+    budget_max:       parseInt(document.getElementById('c-budget-max').value) || null,
+    area_min:         parseInt(document.getElementById('c-area-min').value)   || null,
+    area_max:         parseInt(document.getElementById('c-area-max').value)   || null,
+    rooms:            document.getElementById('c-rooms').value     || null,
+    deal_type:        document.getElementById('c-deal-type').value,
+    message_template: document.getElementById('c-message-template').value.trim() || null,
   };
   if (!body.name) { showToast('Введите имя клиента', 'error'); return; }
   try {
@@ -199,7 +201,7 @@ document.getElementById('btn-add-client').addEventListener('click', async () => 
     showToast('Клиент добавлен ✓');
     loadClients();
     loadStats();
-    ['c-name','c-district','c-budget-min','c-budget-max','c-area-min','c-area-max'].forEach(id => {
+    ['c-name','c-district','c-budget-min','c-budget-max','c-area-min','c-area-max','c-message-template'].forEach(id => {
       document.getElementById(id).value = '';
     });
   } catch (e) {
@@ -410,6 +412,142 @@ document.getElementById('btn-open-browser').addEventListener('click', async () =
   } finally {
     btn.disabled = false;
     btn.textContent = '🌐 Открыть браузер';
+  }
+});
+
+// ── Карта ─────────────────────────────────────────────────────────────────────
+
+let _map = null;
+let _drawingMode = false;
+let _polygonPoints = [];   // [[lat, lon], ...]
+let _polyline = null;      // линия в процессе рисования
+let _polygon = null;       // готовый полигон
+
+async function initMap() {
+  // Заполняем список клиентов
+  try {
+    const clients = await api('GET', '/api/listings/clients');
+    const sel = document.getElementById('map-client-select');
+    sel.innerHTML = '<option value="">— выберите клиента —</option>' +
+      clients.map(c => `<option value="${c.id}" data-polygon="${c.area_polygon || ''}">${c.name}</option>`).join('');
+
+    // Если у выбранного клиента уже есть полигон — показываем его
+    sel.addEventListener('change', () => {
+      const opt = sel.options[sel.selectedIndex];
+      const poly = opt.dataset.polygon;
+      if (poly) _loadExistingPolygon(poly);
+    });
+  } catch (_) {}
+
+  // Инициализируем карту один раз
+  if (_map) {
+    _map.invalidateSize();
+    return;
+  }
+
+  _map = L.map('map-container', { zoomControl: true }).setView([51.1694, 71.4491], 11);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OpenStreetMap',
+    maxZoom: 19,
+  }).addTo(_map);
+
+  _map.on('click', _onMapClick);
+  _map.on('dblclick', _finishPolygon);
+}
+
+function _onMapClick(e) {
+  if (!_drawingMode) return;
+  _polygonPoints.push([e.latlng.lat, e.latlng.lng]);
+  _redrawPolyline();
+}
+
+function _redrawPolyline() {
+  if (_polyline) _map.removeLayer(_polyline);
+  if (_polygonPoints.length < 2) return;
+  _polyline = L.polyline(_polygonPoints, { color: '#4f8ef7', weight: 2, dashArray: '6,4' }).addTo(_map);
+}
+
+function _finishPolygon(e) {
+  if (!_drawingMode || _polygonPoints.length < 3) return;
+
+  // Останавливаем рисование
+  _drawingMode = false;
+  document.getElementById('map-container').classList.remove('map-draw-active');
+  document.getElementById('map-hint').style.display = 'none';
+
+  if (_polyline) { _map.removeLayer(_polyline); _polyline = null; }
+  if (_polygon)  { _map.removeLayer(_polygon);  _polygon = null; }
+
+  _polygon = L.polygon(_polygonPoints, {
+    color: '#4f8ef7',
+    fillColor: '#4f8ef7',
+    fillOpacity: 0.15,
+    weight: 2,
+  }).addTo(_map);
+
+  _map.fitBounds(_polygon.getBounds(), { padding: [20, 20] });
+
+  const coordStr = _polygonPoints.map(p => `${p[0].toFixed(6)},${p[1].toFixed(6)}`).join(',');
+  document.getElementById('map-polygon-info').textContent =
+    `✓ Область обведена: ${_polygonPoints.length} точек`;
+  document.getElementById('btn-save-polygon').disabled = false;
+  document.getElementById('btn-save-polygon').dataset.coords = coordStr;
+}
+
+function _loadExistingPolygon(coordStr) {
+  if (!_map || !coordStr) return;
+  const parts = coordStr.split(',').map(Number);
+  if (parts.length < 4) return;
+  _polygonPoints = [];
+  for (let i = 0; i < parts.length - 1; i += 2) {
+    _polygonPoints.push([parts[i], parts[i + 1]]);
+  }
+  _finishPolygon({});
+  document.getElementById('map-polygon-info').textContent =
+    `↩ Загружена сохранённая область (${_polygonPoints.length} точек)`;
+}
+
+document.getElementById('btn-draw-polygon').addEventListener('click', () => {
+  if (!_map) { showToast('Сначала откройте карту', 'error'); return; }
+  _drawingMode = true;
+  _polygonPoints = [];
+  if (_polyline) { _map.removeLayer(_polyline); _polyline = null; }
+  if (_polygon)  { _map.removeLayer(_polygon);  _polygon = null; }
+  document.getElementById('map-container').classList.add('map-draw-active');
+  document.getElementById('map-hint').style.display = 'block';
+  document.getElementById('btn-save-polygon').disabled = true;
+  document.getElementById('map-polygon-info').textContent = '';
+});
+
+document.getElementById('btn-finish-polygon').addEventListener('click', () => {
+  _finishPolygon({});
+});
+
+document.getElementById('btn-clear-polygon').addEventListener('click', () => {
+  _drawingMode = false;
+  _polygonPoints = [];
+  if (_polyline) { _map.removeLayer(_polyline); _polyline = null; }
+  if (_polygon)  { _map.removeLayer(_polygon);  _polygon = null; }
+  document.getElementById('map-hint').style.display = 'none';
+  document.getElementById('map-container').classList.remove('map-draw-active');
+  document.getElementById('btn-save-polygon').disabled = true;
+  document.getElementById('map-polygon-info').textContent = '';
+});
+
+document.getElementById('btn-save-polygon').addEventListener('click', async () => {
+  const clientId = document.getElementById('map-client-select').value;
+  if (!clientId) { showToast('Выберите клиента', 'error'); return; }
+  const coords = document.getElementById('btn-save-polygon').dataset.coords;
+  if (!coords) { showToast('Сначала обведите область', 'error'); return; }
+  try {
+    await api('PATCH', `/api/listings/clients/${clientId}/polygon`, { area_polygon: coords });
+    showToast('Область сохранена для клиента ✓');
+    // Обновляем data-polygon в select
+    const opt = document.querySelector(`#map-client-select option[value="${clientId}"]`);
+    if (opt) opt.dataset.polygon = coords;
+  } catch (e) {
+    showToast(e.message, 'error');
   }
 });
 

@@ -94,6 +94,19 @@ body {
   letter-spacing: -0.5px;
 }
 
+/* ── Карта ── */
+#page-map {
+  height: calc(100vh - 64px);
+}
+
+.leaflet-container {
+  background: var(--surface2) !important;
+}
+
+.map-draw-active {
+  cursor: crosshair !important;
+}
+
 /* ── Форм-элементы ── */
 .field {
   display: flex;

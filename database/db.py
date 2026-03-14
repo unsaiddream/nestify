@@ -66,6 +66,18 @@ async def init_db():
         """)
         await db.commit()
 
+        # Миграции: добавляем новые колонки если их нет (для существующих БД)
+        migrations = [
+            "ALTER TABLE clients ADD COLUMN area_polygon TEXT",
+            "ALTER TABLE clients ADD COLUMN message_template TEXT",
+        ]
+        for sql in migrations:
+            try:
+                await db.execute(sql)
+                await db.commit()
+            except Exception:
+                pass  # колонка уже существует
+
 
 async def get_setting(key: str) -> str | None:
     """Читает значение настройки из БД."""
