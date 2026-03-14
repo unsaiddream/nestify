@@ -78,37 +78,66 @@ async def close_browser():
 def _build_search_url(client: dict) -> str:
     """Строит URL поиска на Krisha.kz по параметрам клиента."""
     deal = "arenda" if client.get("deal_type") == "rent" else "prodazha"
+
+    # Если задан полигон — используем map URL Krisha
+    if client.get("area_polygon"):
+        return _build_map_url(client, deal)
+
     base = f"{KRISHA_BASE}/{deal}/kvartiry/"
 
-    # Район → попытка определить город в URL
     district: str = client.get("district") or ""
     city_slug = _city_slug(district)
     if city_slug:
         base += f"{city_slug}/"
 
-    params = []
+    params = _filter_params(client)
+    query = "&".join(params)
+    return f"{base}?{query}" if query else base
 
-    # Цена
+
+def _build_map_url(client: dict, deal: str) -> str:
+    """
+    Строит URL карты Krisha.kz с полигоном области.
+    Формат: /map/{deal}/kvartiry/?areas=p{lat},{lon},{lat},{lon},...
+    """
+    polygon = client["area_polygon"]  # "lat1,lon1,lat2,lon2,..."
+    coords = [c.strip() for c in polygon.split(",")]
+
+    # Закрываем полигон (первая точка = последняя)
+    if len(coords) >= 4 and coords[:2] != coords[-2:]:
+        coords = coords + coords[:2]
+
+    areas_param = "p" + ",".join(coords)
+
+    # Центр полигона для zoom/lat/lon параметров
+    lats = [float(coords[i]) for i in range(0, len(coords), 2)]
+    lons = [float(coords[i]) for i in range(1, len(coords), 2)]
+    center_lat = sum(lats) / len(lats)
+    center_lon = sum(lons) / len(lons)
+
+    params = [f"zoom=13&lat={center_lat:.5f}&lon={center_lon:.5f}&areas={areas_param}"]
+    params += _filter_params(client)
+
+    return f"{KRISHA_BASE}/map/{deal}/kvartiry/?{'&'.join(params)}"
+
+
+def _filter_params(client: dict) -> list[str]:
+    """Общие фильтры (цена, площадь, комнаты) для любого URL."""
+    params = []
     if client.get("budget_min"):
         params.append(f"das[price][from]={client['budget_min']}")
     if client.get("budget_max"):
         params.append(f"das[price][to]={client['budget_max']}")
-
-    # Площадь
     if client.get("area_min"):
         params.append(f"das[live.square][from]={client['area_min']}")
     if client.get("area_max"):
         params.append(f"das[live.square][to]={client['area_max']}")
-
-    # Комнаты
     rooms_raw = client.get("rooms")
     if rooms_raw and rooms_raw != "4+":
         params.append(f"das[live.rooms]={rooms_raw}")
     elif rooms_raw == "4+":
         params.append("das[live.rooms][from]=4")
-
-    query = "&".join(params)
-    return f"{base}?{query}" if query else base
+    return params
 
 
 def _city_slug(district: str) -> str:
@@ -154,25 +183,59 @@ def _parse_rooms(text: str) -> int | None:
 async def search_listings(client: dict, max_pages: int = 3) -> list[RawListing]:
     """
     Ищет объявления на Krisha.kz по параметрам клиента.
-    Возвращает список RawListing с первых max_pages страниц.
+    Если задан полигон — использует map URL и скрапит правый сайдбар.
     """
     url = _build_search_url(client)
-    results: list[RawListing] = []
+    is_map = "/map/" in url
 
+    if is_map:
+        return await _search_map(url)
+    else:
+        return await _search_list(url, max_pages)
+
+
+async def _search_map(url: str) -> list[RawListing]:
+    """Поиск через map URL Krisha — скрапим список в правом сайдбаре."""
+    results: list[RawListing] = []
+    page = await new_page()
+    try:
+        await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+        await asyncio.sleep(2.5)  # ждём загрузки карты и сайдбара
+
+        # Ждём карточки в сайдбаре
+        try:
+            await page.wait_for_selector(".a-card", timeout=10_000)
+        except Exception:
+            return results
+
+        cards = await page.query_selector_all(".a-card")
+        for card in cards:
+            try:
+                listing = await _parse_card(card)
+                if listing:
+                    results.append(listing)
+            except Exception:
+                continue
+
+    finally:
+        await page.close()
+    return results
+
+
+async def _search_list(url: str, max_pages: int) -> list[RawListing]:
+    """Поиск через обычный список объявлений."""
+    results: list[RawListing] = []
     page = await new_page()
     try:
         for page_num in range(1, max_pages + 1):
             page_url = url if page_num == 1 else f"{url}&page={page_num}"
             await page.goto(page_url, wait_until="domcontentloaded", timeout=30_000)
-
-            # Небольшая пауза — ведём себя по-человечески
             await asyncio.sleep(1.5)
 
-            # Ждём появления карточек
             try:
                 await page.wait_for_selector(".a-card", timeout=8_000)
             except Exception:
-                break  # нет карточек — страниц больше нет
+                break
 
             cards = await page.query_selector_all(".a-card")
             if not cards:
@@ -186,15 +249,12 @@ async def search_listings(client: dict, max_pages: int = 3) -> list[RawListing]:
                 except Exception:
                     continue
 
-            # Если на странице меньше 20 карточек — это последняя страница
             if len(cards) < 20:
                 break
 
-            await asyncio.sleep(2)  # задержка между страницами
-
+            await asyncio.sleep(2)
     finally:
         await page.close()
-
     return results
 
 
