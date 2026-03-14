@@ -72,6 +72,7 @@
           <div class="status-dot" id="agent-dot"></div>
           <span id="agent-status-text">Агент остановлен</span>
         </div>
+        <div id="agent-error-box" class="hidden" style="margin:0 12px 8px;padding:8px 10px;background:rgba(247,111,111,.1);border:1px solid var(--danger);border-radius:6px;font-size:11px;color:var(--danger);word-break:break-word;"></div>
         <button class="btn btn-primary" id="btn-toggle-agent" style="margin:0 12px 8px;">
           Запустить агента
         </button>
@@ -274,12 +275,26 @@
       <!-- Страница: Настройки -->
       <div id="page-settings" class="hidden">
         <h2 class="page-title">Настройки</h2>
-        <div class="card" style="max-width:440px;">
+        <div class="card" style="max-width:480px;">
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">
+            Текущий токен: <span id="settings-token-status" style="color:var(--text);">проверяем...</span>
+          </p>
           <div class="field">
-            <label>Gemini API Token</label>
-            <input type="password" id="settings-token" placeholder="AIza..." />
+            <label>Новый Gemini API Token</label>
+            <input type="text" id="settings-token" placeholder="AIzaSy..." autocomplete="off" />
           </div>
-          <button class="btn btn-primary" id="btn-update-token">Сохранить токен</button>
+          <button class="btn btn-primary" id="btn-update-token" style="margin-bottom:12px;">Сохранить токен</button>
+
+          <hr style="border:none;border-top:1px solid var(--border);margin:20px 0;" />
+
+          <p style="font-size:13px;font-weight:600;margin-bottom:10px;">Браузер (Krisha.kz)</p>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">
+            Открывает браузер с Krisha.kz. Если не залогинен — войдите вручную один раз.
+          </p>
+          <button class="btn btn-ghost" id="btn-open-browser" style="width:100%;">
+            🌐 Открыть браузер
+          </button>
+          <p id="browser-open-result" style="font-size:12px;margin-top:8px;"></p>
         </div>
       </div>
 

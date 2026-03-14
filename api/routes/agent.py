@@ -16,38 +16,56 @@ router = APIRouter(prefix="/agent", tags=["agent"])
 # Состояние агента
 _stop_event: asyncio.Event | None = None
 _task: asyncio.Task | None = None
+_last_error: str | None = None  # последняя ошибка для отображения в UI
 
 
 @router.post("/start")
 async def start_agent():
-    """Запускает агента в фоновой asyncio-задаче."""
-    global _stop_event, _task
+    """Запускает агента — сразу открывает браузер и начинает сканирование."""
+    global _stop_event, _task, _last_error
 
     if _task and not _task.done():
         return {"status": "already_running"}
 
-    # Импортируем здесь чтобы избежать циклических импортов
     from agent.analyzer import run_agent
 
+    _last_error = None
     _stop_event = asyncio.Event()
-    _task = asyncio.create_task(run_agent(_stop_event))
+    _task = asyncio.create_task(_run_with_error_capture(_stop_event, run_agent))
     logger.info("Агент запущен")
     return {"status": "started"}
 
 
+async def _run_with_error_capture(stop_event, run_fn):
+    """Обёртка вокруг run_agent — сохраняет ошибку если упал."""
+    global _last_error
+    try:
+        await run_fn(stop_event)
+    except Exception as e:
+        _last_error = str(e)
+        logger.error(f"Агент упал с ошибкой: {e}")
+
+
 @router.post("/stop")
 async def stop_agent():
-    """Останавливает агента."""
-    global _stop_event, _task
+    """Останавливает агента и закрывает браузер."""
+    global _stop_event, _task, _last_error
 
     if _stop_event:
         _stop_event.set()
 
     if _task and not _task.done():
         try:
-            await asyncio.wait_for(_task, timeout=5)
+            await asyncio.wait_for(asyncio.shield(_task), timeout=5)
         except (asyncio.TimeoutError, asyncio.CancelledError):
             _task.cancel()
+
+    # Закрываем браузер
+    try:
+        from agent.browser import close_browser
+        await close_browser()
+    except Exception:
+        pass
 
     _task = None
     _stop_event = None
@@ -55,11 +73,31 @@ async def stop_agent():
     return {"status": "stopped"}
 
 
+@router.post("/open-browser")
+async def open_browser():
+    """Открывает браузер с Krisha.kz без запуска сканирования."""
+    try:
+        from agent.browser import get_context
+        ctx = await get_context()
+        pages = ctx.pages
+        # Если нет вкладки с Krisha — открываем
+        krisha_open = any("krisha.kz" in (p.url or "") for p in pages)
+        if not krisha_open:
+            page = await ctx.new_page()
+            await page.goto("https://krisha.kz", wait_until="domcontentloaded", timeout=20_000)
+        return {"status": "ok", "message": "Браузер открыт"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
 @router.get("/status")
 async def agent_status():
-    """Возвращает текущий статус агента."""
+    """Возвращает текущий статус агента и последнюю ошибку."""
     running = bool(_task and not _task.done())
-    return {"running": running}
+    return {
+        "running": running,
+        "last_error": _last_error,
+    }
 
 
 @router.get("/log")

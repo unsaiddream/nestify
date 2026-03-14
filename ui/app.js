@@ -86,6 +86,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     if (btn.dataset.page === 'listings') loadListings();
     if (btn.dataset.page === 'clients')  loadClients();
     if (btn.dataset.page === 'messages') loadMessages();
+    if (btn.dataset.page === 'settings') loadSettingsPage();
   });
 });
 
@@ -268,15 +269,24 @@ let _agentRunning = false;
 
 async function updateAgentStatus() {
   try {
-    const { running } = await api('GET', '/api/agent/status');
+    const { running, last_error } = await api('GET', '/api/agent/status');
     _agentRunning = running;
-    const dot  = document.getElementById('agent-dot');
-    const text = document.getElementById('agent-status-text');
-    const btn  = document.getElementById('btn-toggle-agent');
+    const dot      = document.getElementById('agent-dot');
+    const text     = document.getElementById('agent-status-text');
+    const btn      = document.getElementById('btn-toggle-agent');
+    const errorBox = document.getElementById('agent-error-box');
+
     dot.classList.toggle('running', running);
     text.textContent = running ? 'Агент работает' : 'Агент остановлен';
     btn.textContent  = running ? 'Остановить агента' : 'Запустить агента';
     btn.style.background = running ? 'var(--danger)' : '';
+
+    if (last_error) {
+      errorBox.textContent = '⚠️ ' + last_error;
+      errorBox.classList.remove('hidden');
+    } else {
+      errorBox.classList.add('hidden');
+    }
   } catch (_) {}
 }
 
@@ -322,15 +332,60 @@ async function loadMessages() {
 
 // ── Настройки ─────────────────────────────────────────────────────────────────
 
+async function loadSettingsPage() {
+  try {
+    const { has_token, masked } = await api('GET', '/api/auth/gemini-token/status');
+    const el = document.getElementById('settings-token-status');
+    if (has_token && masked) {
+      el.textContent = masked;
+      el.style.color = 'var(--success)';
+    } else {
+      el.textContent = 'не задан';
+      el.style.color = 'var(--danger)';
+    }
+  } catch (_) {}
+}
+
 document.getElementById('btn-update-token').addEventListener('click', async () => {
   const token = document.getElementById('settings-token').value.trim();
   if (!token) { showToast('Введите токен', 'error'); return; }
+  const btn = document.getElementById('btn-update-token');
+  btn.disabled = true;
+  btn.textContent = 'Сохраняем...';
   try {
     await api('POST', '/api/auth/gemini-token', { token });
-    showToast('Токен обновлён ✓');
+    showToast('Токен сохранён ✓');
     document.getElementById('settings-token').value = '';
+    await loadSettingsPage();
   } catch (e) {
     showToast(e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Сохранить токен';
+  }
+});
+
+document.getElementById('btn-open-browser').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-open-browser');
+  const result = document.getElementById('browser-open-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ Открываем браузер...';
+  result.textContent = '';
+  try {
+    const data = await api('POST', '/api/agent/open-browser');
+    if (data.status === 'ok') {
+      result.style.color = 'var(--success)';
+      result.textContent = '✓ Браузер открыт. Если нужно — войдите в Krisha.kz вручную.';
+    } else {
+      result.style.color = 'var(--danger)';
+      result.textContent = '✗ ' + (data.message || 'Ошибка');
+    }
+  } catch (e) {
+    result.style.color = 'var(--danger)';
+    result.textContent = '✗ ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '🌐 Открыть браузер';
   }
 });
 

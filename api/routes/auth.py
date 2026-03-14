@@ -28,4 +28,8 @@ async def save_gemini_token(body: GeminiTokenRequest):
 async def gemini_token_status():
     """Проверяет, сохранён ли Gemini токен."""
     token = await get_setting("gemini_token")
-    return {"has_token": token is not None}
+    masked = None
+    if token:
+        # Показываем только первые 8 и последние 4 символа: AIzaSyAB...xYzW
+        masked = token[:8] + "..." + token[-4:] if len(token) > 12 else token[:4] + "..."
+    return {"has_token": token is not None, "masked": masked}

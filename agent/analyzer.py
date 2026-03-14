@@ -24,18 +24,29 @@ async def run_agent(stop_event: asyncio.Event):
     Каждые SCAN_INTERVAL секунд проходит по всем клиентам.
     """
     logger.info("Агент запущен")
+
+    # Сразу открываем браузер при старте — пользователь видит что всё работает
+    try:
+        from agent.browser import get_context
+        await get_context()
+        logger.info("Браузер открыт")
+        await _log_action("browser_open", "Браузер успешно запущен")
+    except Exception as e:
+        err = str(e)
+        logger.error(f"Не удалось открыть браузер: {err}")
+        await _log_action("browser_error", f"Ошибка запуска браузера: {err}")
+        # Не прерываем работу — попробуем снова при сканировании
+
     while not stop_event.is_set():
         try:
             await _scan_all_clients()
         except Exception as e:
             logger.error(f"Ошибка в цикле агента: {e}")
+            await _log_action("agent_error", str(e))
 
-        # Ждём следующего прохода с возможностью прерваться
+        # Ждём до следующего прохода, но прерываемся если stop_event установлен
         try:
-            await asyncio.wait_for(
-                asyncio.shield(stop_event.wait()),
-                timeout=SCAN_INTERVAL,
-            )
+            await asyncio.wait_for(stop_event.wait(), timeout=SCAN_INTERVAL)
         except asyncio.TimeoutError:
             pass  # Таймаут вышел — делаем следующий проход
 
