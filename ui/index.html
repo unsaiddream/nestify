@@ -227,14 +227,26 @@
             Текущий токен: <span id="settings-token-status" style="color:var(--text);">проверяем...</span>
           </p>
           <div class="field">
-            <label>Новый Gemini API Token</label>
+            <label>Gemini API Token</label>
             <input type="text" id="settings-token" placeholder="AIzaSy..." autocomplete="off" />
           </div>
-          <div style="display:flex;gap:8px;margin-bottom:16px;">
-            <button class="btn btn-primary" id="btn-update-token" style="flex:1;margin:0;">Сохранить токен</button>
-            <button class="btn btn-ghost" id="btn-test-gemini" style="flex:1;">🧪 Тест Gemini</button>
+          <button class="btn btn-primary" id="btn-update-token" style="margin-bottom:16px;">Сохранить токен</button>
+
+          <div class="field" style="margin-top:8px;">
+            <label>Модель Gemini</label>
+            <select id="settings-model">
+              <option value="gemini-2.0-flash">gemini-2.0-flash (рекомендуется)</option>
+              <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite (быстрее)</option>
+              <option value="gemini-2.0-pro-exp">gemini-2.0-pro-exp (мощнее)</option>
+              <option value="gemini-1.5-pro">gemini-1.5-pro</option>
+              <option value="gemini-1.5-flash-latest">gemini-1.5-flash-latest</option>
+            </select>
           </div>
-          <p id="gemini-test-result" style="font-size:12px;margin-bottom:8px;white-space:pre-wrap;"></p>
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <button class="btn btn-ghost" id="btn-save-model" style="flex:1;">💾 Сохранить модель</button>
+            <button class="btn btn-ghost" id="btn-test-gemini" style="flex:1;">🧪 Тест</button>
+          </div>
+          <p id="gemini-test-result" style="font-size:12px;margin-bottom:8px;white-space:pre-wrap;line-height:1.5;"></p>
           <hr style="border:none;border-top:1px solid var(--glass-border);margin:20px 0;" />
           <p style="font-size:13px;font-weight:600;margin-bottom:10px;">Браузер (Krisha.kz)</p>
           <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Открывает браузер с Krisha.kz. Если не залогинен — войдите вручную один раз.</p>

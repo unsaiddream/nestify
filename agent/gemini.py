@@ -20,13 +20,17 @@ class ListingAnalysis:
     message: str        # готовое сообщение продавцу (если approved)
 
 
+DEFAULT_MODEL = "gemini-2.0-flash"
+
+
 async def _get_model() -> genai.GenerativeModel:
-    """Инициализирует Gemini с токеном из БД."""
+    """Инициализирует Gemini с токеном и моделью из БД."""
     token = await get_setting("gemini_token")
     if not token:
         raise RuntimeError("Gemini API токен не настроен")
+    model_name = await get_setting("gemini_model") or DEFAULT_MODEL
     genai.configure(api_key=token)
-    return genai.GenerativeModel("gemini-1.5-flash")
+    return genai.GenerativeModel(model_name)
 
 
 async def analyze_listing(listing: dict, client: dict) -> ListingAnalysis:

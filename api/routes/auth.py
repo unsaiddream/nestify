@@ -34,21 +34,49 @@ async def gemini_token_status():
     return {"has_token": token is not None, "masked": masked}
 
 
+AVAILABLE_MODELS = [
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-2.0-pro-exp",
+    "gemini-1.5-pro",
+    "gemini-1.5-flash-latest",
+]
+
+
+class GeminiModelRequest(BaseModel):
+    model: str
+
+
+@router.post("/gemini-model")
+async def save_gemini_model(body: GeminiModelRequest):
+    """Сохраняет выбранную модель Gemini."""
+    await set_setting("gemini_model", body.model.strip())
+    return {"status": "ok", "model": body.model}
+
+
+@router.get("/gemini-model")
+async def get_gemini_model():
+    """Возвращает текущую модель Gemini."""
+    model = await get_setting("gemini_model") or "gemini-2.0-flash"
+    return {"model": model, "available": AVAILABLE_MODELS}
+
+
 @router.post("/test-gemini")
 async def test_gemini():
     """Отправляет тестовый запрос к Gemini API и возвращает результат или ошибку."""
     token = await get_setting("gemini_token")
     if not token:
         return {"status": "error", "message": "Токен не настроен"}
+    model_name = await get_setting("gemini_model") or "gemini-2.0-flash"
     try:
         import asyncio
         import google.generativeai as genai
         genai.configure(api_key=token)
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        model = genai.GenerativeModel(model_name)
         response = await asyncio.to_thread(
             model.generate_content,
             'Ответь одним словом: "работает"'
         )
-        return {"status": "ok", "message": f"Gemini отвечает: {response.text.strip()[:100]}"}
+        return {"status": "ok", "message": f"[{model_name}] {response.text.strip()[:100]}"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
