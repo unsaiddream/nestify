@@ -198,6 +198,101 @@ async def search_listings(client: dict, max_pages: int = 3) -> list[RawListing]:
     return results
 
 
+async def send_message(listing_url: str, message_text: str) -> bool:
+    """
+    Отправляет сообщение продавцу на странице объявления Krisha.kz.
+    Возвращает True если сообщение отправлено успешно.
+    """
+    page = await new_page()
+    try:
+        await page.goto(listing_url, wait_until="domcontentloaded", timeout=30_000)
+        await asyncio.sleep(1.5)
+
+        # Пробуем найти кнопку "Написать" / чат
+        btn_selectors = [
+            "button.send-message",
+            "[data-name='sendMessage']",
+            ".offer-chat__button",
+            "button:has-text('Написать')",
+            "a:has-text('Написать')",
+            ".contacts__btn-message",
+            "[class*='message'][class*='btn']",
+            "[class*='chat'][class*='btn']",
+        ]
+
+        btn = None
+        for sel in btn_selectors:
+            try:
+                btn = await page.wait_for_selector(sel, timeout=3_000)
+                if btn:
+                    break
+            except Exception:
+                continue
+
+        if not btn:
+            return False
+
+        await btn.click()
+        await asyncio.sleep(1)
+
+        # Ищем поле ввода сообщения
+        input_selectors = [
+            "textarea.send-message__textarea",
+            ".offer-chat__input textarea",
+            "[class*='chat'] textarea",
+            "[class*='message'] textarea",
+            "textarea[placeholder*='сообщен']",
+            "textarea[placeholder*='Сообщен']",
+        ]
+
+        textarea = None
+        for sel in input_selectors:
+            try:
+                textarea = await page.wait_for_selector(sel, timeout=3_000)
+                if textarea:
+                    break
+            except Exception:
+                continue
+
+        if not textarea:
+            return False
+
+        await textarea.click()
+        await textarea.fill(message_text)
+        await asyncio.sleep(0.8)
+
+        # Кнопка отправки
+        send_selectors = [
+            "button[type='submit']",
+            "button:has-text('Отправить')",
+            ".send-message__submit",
+            "[class*='submit']",
+            "[class*='send'][class*='button']",
+        ]
+
+        send_btn = None
+        for sel in send_selectors:
+            try:
+                send_btn = await page.query_selector(sel)
+                if send_btn:
+                    break
+            except Exception:
+                continue
+
+        if not send_btn:
+            return False
+
+        await send_btn.click()
+        await asyncio.sleep(1.5)
+
+        return True
+
+    except Exception:
+        return False
+    finally:
+        await page.close()
+
+
 async def _parse_card(card) -> RawListing | None:
     """Извлекает данные из одной карточки объявления."""
     # Ссылка и ID

@@ -74,6 +74,26 @@ async def delete_client(client_id: int):
     return {"status": "ok"}
 
 
+@router.get("/messages")
+async def get_messages(limit: int = 50):
+    """Возвращает историю отправленных сообщений с данными объявлений."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT m.id, m.text, m.sent_at, m.status,
+                      l.title, l.url, l.price, l.district, l.krisha_id,
+                      c.name as client_name
+               FROM messages m
+               JOIN listings l ON l.id = m.listing_id
+               JOIN clients  c ON c.id = l.client_id
+               ORDER BY m.sent_at DESC
+               LIMIT ?""",
+            (limit,),
+        ) as cur:
+            rows = await cur.fetchall()
+    return [dict(r) for r in rows]
+
+
 @router.get("/stats")
 async def get_stats():
     """Возвращает общую статистику для дашборда."""

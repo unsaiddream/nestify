@@ -85,6 +85,7 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
     showPage(btn.dataset.page);
     if (btn.dataset.page === 'listings') loadListings();
     if (btn.dataset.page === 'clients')  loadClients();
+    if (btn.dataset.page === 'messages') loadMessages();
   });
 });
 
@@ -109,7 +110,8 @@ async function loadStats() {
     const s = await api('GET', '/api/listings/stats');
     document.getElementById('stat-clients').textContent  = s.clients;
     document.getElementById('stat-listings').textContent = s.listings;
-    document.getElementById('stat-messages').textContent = s.messages;
+    document.getElementById('stat-approved').textContent = s.approved;
+    document.getElementById('stat-messages').textContent = s.messaged;
     document.getElementById('stat-actions').textContent  = s.actions_today;
   } catch (_) {}
 }
@@ -128,10 +130,17 @@ async function loadOverviewListings() {
         <td>${r.client_id || '—'}</td>
         <td>${fmt(r.price)} ₸</td>
         <td>${r.area ? r.area + ' м²' : '—'}</td>
+        <td>${scoreCell(r.ai_score)}</td>
         <td>${statusBadge(r.status)}</td>
       </tr>
     `).join('');
   } catch (_) {}
+}
+
+function scoreCell(score) {
+  if (score === null || score === undefined) return '<span style="color:var(--text-muted)">—</span>';
+  const color = score >= 7 ? 'var(--success)' : score >= 5 ? 'var(--warning)' : 'var(--danger)';
+  return `<span style="font-weight:600;color:${color}">${score}/10</span>`;
 }
 
 function statusBadge(status) {
@@ -285,6 +294,31 @@ document.getElementById('btn-toggle-agent').addEventListener('click', async () =
     showToast(e.message, 'error');
   }
 });
+
+// ── Сообщения ─────────────────────────────────────────────────────────────────
+
+async function loadMessages() {
+  try {
+    const rows = await api('GET', '/api/listings/messages');
+    const tbody = document.getElementById('messages-body');
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:32px;">Агент ещё не отправлял сообщений</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(r => {
+      const time = new Date(r.sent_at + 'Z').toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+      return `<tr>
+        <td style="color:var(--text-muted);white-space:nowrap;">${time}</td>
+        <td>${r.client_name || '—'}</td>
+        <td><a href="${r.url || '#'}" target="_blank" style="color:var(--accent);text-decoration:none;">${r.title || r.krisha_id || '—'}</a></td>
+        <td style="max-width:300px;color:var(--text-muted);">${r.text || ''}</td>
+        <td><span class="badge badge-success">Отправлено</span></td>
+      </tr>`;
+    }).join('');
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
 
 // ── Настройки ─────────────────────────────────────────────────────────────────
 
