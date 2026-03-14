@@ -124,6 +124,51 @@ async def agent_status():
     }
 
 
+@router.get("/debug-selectors")
+async def debug_selectors():
+    """Открывает страницу поиска Krisha.kz и возвращает найденные селекторы — для диагностики."""
+    try:
+        from agent.browser import new_page
+        page = await new_page()
+        try:
+            url = "https://krisha.kz/arenda/kvartiry/almaty/"
+            await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+            import asyncio
+            await asyncio.sleep(3)
+
+            # Проверяем разные возможные селекторы карточек
+            candidates = [
+                ".a-card", ".a-list__item", "[data-id]", ".card",
+                "article", ".flat-card", ".listing-item", "[class*='card']",
+                ".search-result", ".offer", "[class*='offer']", "[class*='flat']",
+                "section.a-list .a-list__item", "ul.a-list li",
+            ]
+            found = {}
+            for sel in candidates:
+                els = await page.query_selector_all(sel)
+                if els:
+                    found[sel] = len(els)
+
+            # Получаем HTML первых 3000 символов для ручного анализа
+            body = await page.query_selector("body")
+            html_snippet = ""
+            if body:
+                html_snippet = (await body.inner_html())[:3000]
+
+            title = await page.title()
+            return {
+                "status": "ok",
+                "url": page.url,
+                "title": title,
+                "selectors_found": found,
+                "html_snippet": html_snippet,
+            }
+        finally:
+            await page.close()
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
 @router.get("/log")
 async def agent_log(limit: int = 50):
     """Возвращает последние действия агента из БД."""
