@@ -234,13 +234,18 @@
 
           <div class="field" style="margin-top:8px;">
             <label>Модель Gemini</label>
-            <select id="settings-model">
-              <option value="gemini-2.0-flash">gemini-2.0-flash (рекомендуется)</option>
-              <option value="gemini-2.0-flash-lite">gemini-2.0-flash-lite (быстрее)</option>
-              <option value="gemini-2.0-pro-exp">gemini-2.0-pro-exp (мощнее)</option>
-              <option value="gemini-1.5-pro">gemini-1.5-pro</option>
-              <option value="gemini-1.5-flash-latest">gemini-1.5-flash-latest</option>
+            <select id="settings-model-select" onchange="document.getElementById('settings-model').value=this.value">
+              <option value="gemini-2.0-flash-exp">gemini-2.0-flash-exp</option>
+              <option value="gemini-2.0-pro-exp">gemini-2.0-pro-exp</option>
+              <option value="gemini-2.0-pro-exp-02-05">gemini-2.0-pro-exp-02-05</option>
+              <option value="gemini-2.5-pro-exp-03-25">gemini-2.5-pro-exp-03-25</option>
+              <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+              <option value="gemini-2.5-flash">gemini-2.5-flash</option>
             </select>
+          </div>
+          <div class="field">
+            <label>Или введите название модели вручную</label>
+            <input type="text" id="settings-model" placeholder="gemini-2.0-flash-exp" />
           </div>
           <div style="display:flex;gap:8px;margin-bottom:8px;">
             <button class="btn btn-ghost" id="btn-save-model" style="flex:1;">💾 Сохранить модель</button>

@@ -459,8 +459,15 @@ async function loadSettingsPage() {
   } catch (_) {}
   try {
     const { model } = await api('GET', '/api/auth/gemini-model');
-    const sel = document.getElementById('settings-model');
-    if (sel && model) sel.value = model;
+    if (model) {
+      document.getElementById('settings-model').value = model;
+      const sel = document.getElementById('settings-model-select');
+      // Выбираем в дропдауне если есть такой вариант
+      if (sel) {
+        const opt = [...sel.options].find(o => o.value === model);
+        if (opt) sel.value = model;
+      }
+    }
   } catch (_) {}
 }
 
@@ -479,7 +486,8 @@ document.getElementById('btn-update-token').addEventListener('click', async () =
 });
 
 document.getElementById('btn-save-model').addEventListener('click', async () => {
-  const model = document.getElementById('settings-model').value;
+  const model = (document.getElementById('settings-model').value || '').trim();
+  if (!model) { showToast('Введите название модели', 'error'); return; }
   const btn = document.getElementById('btn-save-model');
   btn.disabled = true; btn.textContent = 'Сохраняем...';
   try {
