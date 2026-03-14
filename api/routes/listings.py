@@ -13,19 +13,18 @@ router = APIRouter(prefix="/listings", tags=["listings"])
 
 @router.get("/")
 async def get_listings(client_id: int | None = None, limit: int = 50):
-    """Возвращает список объявлений из БД."""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
+        base = """
+            SELECT l.*, c.name as client_name, c.emoji as client_emoji
+            FROM listings l
+            LEFT JOIN clients c ON c.id = l.client_id
+        """
         if client_id:
-            async with db.execute(
-                "SELECT * FROM listings WHERE client_id = ? ORDER BY found_at DESC LIMIT ?",
-                (client_id, limit),
-            ) as cur:
+            async with db.execute(base + " WHERE l.client_id = ? ORDER BY l.found_at DESC LIMIT ?", (client_id, limit)) as cur:
                 rows = await cur.fetchall()
         else:
-            async with db.execute(
-                "SELECT * FROM listings ORDER BY found_at DESC LIMIT ?", (limit,)
-            ) as cur:
+            async with db.execute(base + " ORDER BY l.found_at DESC LIMIT ?", (limit,)) as cur:
                 rows = await cur.fetchall()
     return [dict(r) for r in rows]
 
@@ -39,6 +38,9 @@ class ClientRequest(BaseModel):
     area_max: int | None = None
     rooms: str | None = None
     deal_type: str = "buy"
+    area_polygon: str | None = None       # "lat1,lon1,lat2,lon2,..." координаты полигона
+    message_template: str | None = None   # шаблон сообщения продавцу
+    emoji: str = '🏠'
 
 
 @router.get("/clients")
@@ -56,13 +58,31 @@ async def create_client(body: ClientRequest):
     """Создаёт нового клиента с параметрами поиска."""
     async with aiosqlite.connect(DB_PATH) as db:
         cur = await db.execute(
-            """INSERT INTO clients (name, district, budget_min, budget_max, area_min, area_max, rooms, deal_type)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            """INSERT INTO clients
+               (name, district, budget_min, budget_max, area_min, area_max, rooms, deal_type, area_polygon, message_template, emoji)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (body.name, body.district, body.budget_min, body.budget_max,
-             body.area_min, body.area_max, body.rooms, body.deal_type),
+             body.area_min, body.area_max, body.rooms, body.deal_type,
+             body.area_polygon, body.message_template, body.emoji),
         )
         await db.commit()
         return {"id": cur.lastrowid, "name": body.name}
+
+
+class PolygonUpdate(BaseModel):
+    area_polygon: str  # "lat1,lon1,lat2,lon2,..."
+
+
+@router.patch("/clients/{client_id}/polygon")
+async def update_client_polygon(client_id: int, body: PolygonUpdate):
+    """Сохраняет нарисованный на карте полигон для клиента."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE clients SET area_polygon = ? WHERE id = ?",
+            (body.area_polygon, client_id),
+        )
+        await db.commit()
+    return {"status": "ok"}
 
 
 @router.delete("/clients/{client_id}")
@@ -72,6 +92,26 @@ async def delete_client(client_id: int):
         await db.execute("UPDATE clients SET active = 0 WHERE id = ?", (client_id,))
         await db.commit()
     return {"status": "ok"}
+
+
+@router.get("/messages")
+async def get_messages(limit: int = 50):
+    """Возвращает историю отправленных сообщений с данными объявлений."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT m.id, m.text, m.sent_at, m.status,
+                      l.title, l.url, l.price, l.district, l.krisha_id,
+                      c.name as client_name
+               FROM messages m
+               JOIN listings l ON l.id = m.listing_id
+               JOIN clients  c ON c.id = l.client_id
+               ORDER BY m.sent_at DESC
+               LIMIT ?""",
+            (limit,),
+        ) as cur:
+            rows = await cur.fetchall()
+    return [dict(r) for r in rows]
 
 
 @router.get("/stats")

@@ -20,13 +20,17 @@ class ListingAnalysis:
     message: str        # готовое сообщение продавцу (если approved)
 
 
+DEFAULT_MODEL = "gemini-2.5-flash-lite"
+
+
 async def _get_model() -> genai.GenerativeModel:
-    """Инициализирует Gemini с токеном из БД."""
+    """Инициализирует Gemini с токеном и моделью из БД."""
     token = await get_setting("gemini_token")
     if not token:
         raise RuntimeError("Gemini API токен не настроен")
+    model_name = await get_setting("gemini_model") or DEFAULT_MODEL
     genai.configure(api_key=token)
-    return genai.GenerativeModel("gemini-1.5-flash")
+    return genai.GenerativeModel(model_name)
 
 
 async def analyze_listing(listing: dict, client: dict) -> ListingAnalysis:
@@ -53,27 +57,38 @@ async def analyze_listing(listing: dict, client: dict) -> ListingAnalysis:
   "score": <число от 1 до 10, насколько объявление подходит клиенту>,
   "approved": <true если score >= 6 и объявление стоит рассмотреть, иначе false>,
   "comment": "<1-2 предложения: почему подходит или не подходит>",
-  "message": "<если approved=true: короткое вежливое сообщение продавцу от имени риелтора на русском, 2-3 предложения; если approved=false: пустая строка>"
+  "message": "<если approved=true: сообщение продавцу (см. инструкцию ниже); если approved=false: пустая строка>"
 }}
 
 Критерии оценки:
 - Цена попадает в бюджет клиента
 - Площадь и количество комнат соответствуют
-- Район/локация подходит
-- Описание не вызывает подозрений (нет признаков мошенничества, завышенной цены)
-- Сообщение продавцу должно быть естественным, не шаблонным"""
+- Описание не вызывает подозрений
+
+{_message_instruction(client)}"""
 
     try:
-        response = await model.generate_content_async(prompt)
+        import asyncio
+        response = await asyncio.to_thread(model.generate_content, prompt)
         return _parse_response(response.text)
     except Exception as e:
-        # При ошибке возвращаем нейтральный результат
-        return ListingAnalysis(
-            score=0,
-            approved=False,
-            comment=f"Ошибка анализа: {e}",
-            message="",
+        raise RuntimeError(f"Gemini API ошибка: {e}") from e
+
+
+def _message_instruction(client: dict) -> str:
+    """Инструкция для Gemini как составить сообщение продавцу."""
+    template = client.get("message_template", "").strip() if client.get("message_template") else ""
+    if template:
+        return (
+            f"Инструкция по сообщению:\n"
+            f"Используй следующий шаблон как основу, при необходимости немного адаптируй под конкретное объявление:\n"
+            f'"{template}"'
         )
+    return (
+        "Инструкция по сообщению:\n"
+        "Напиши короткое (2-3 предложения) вежливое сообщение продавцу от имени риелтора на русском языке. "
+        "Сообщение должно быть естественным, не шаблонным, выражать интерес к объекту."
+    )
 
 
 def _format_client(c: dict) -> str:

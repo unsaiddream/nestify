@@ -7,166 +7,130 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
 
-<!-- ═══════════════════════════════════════════════
-     Экран: Ввод Gemini API токена
-════════════════════════════════════════════════ -->
+<!-- Onboarding: token -->
 <div id="screen-token" class="screen">
   <div class="card">
     <div class="logo">
       <div class="logo-icon">🏠</div>
       <span class="logo-text">Nestify</span>
     </div>
-
     <h1>Добро пожаловать</h1>
-    <p class="subtitle">
-      Введите Gemini API токен — он хранится только локально.<br/>
-      Агент будет работать через ваш браузер, где уже открыт Krisha.kz.
-    </p>
-
+    <p class="subtitle">Введите Gemini API токен — он хранится только локально.<br/>Агент работает через ваш браузер с Krisha.kz.</p>
     <div class="field mt-2">
       <label>Gemini API Token</label>
-      <input type="password" id="gemini-token-input" placeholder="AIza..." autocomplete="off" />
+      <input type="text" id="gemini-token-input" placeholder="AIzaSy..." autocomplete="off" />
     </div>
-
     <button class="btn btn-primary mt-1" id="btn-save-token">Открыть дашборд →</button>
-
     <p class="mt-2" style="font-size:12px;color:var(--text-muted);text-align:center;">
       Получить токен →
-      <a href="https://aistudio.google.com/app/apikey" target="_blank"
-         style="color:var(--accent);text-decoration:none;">Google AI Studio</a>
+      <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:var(--accent);text-decoration:none;">Google AI Studio</a>
     </p>
   </div>
 </div>
 
-<!-- ═══════════════════════════════════════════════
-     Экран: Дашборд
-════════════════════════════════════════════════ -->
+<!-- Dashboard -->
 <div id="screen-dashboard" class="screen hidden">
   <div class="dashboard-layout">
 
-    <!-- Сайдбар -->
     <aside class="sidebar">
       <div class="logo">
         <div class="logo-icon">🏠</div>
         <span class="logo-text">Nestify</span>
       </div>
-
-      <button class="nav-item active" data-page="overview">
-        <span>📊</span> Обзор
-      </button>
-      <button class="nav-item" data-page="clients">
-        <span>👥</span> Клиенты
-      </button>
-      <button class="nav-item" data-page="listings">
-        <span>🏡</span> Объявления
-      </button>
-      <button class="nav-item" data-page="messages">
-        <span>💬</span> Сообщения
-      </button>
+      <button class="nav-item active" data-page="overview"><span>📊</span> Обзор</button>
+      <button class="nav-item" data-page="clients"><span>👥</span> Клиенты</button>
+      <button class="nav-item" data-page="listings"><span>🏡</span> Объявления</button>
+      <button class="nav-item" data-page="messages"><span>💬</span> Сообщения</button>
+      <button class="nav-item" data-page="map"><span>🗺️</span> Карта</button>
 
       <div class="sidebar-bottom">
         <div class="agent-status">
           <div class="status-dot" id="agent-dot"></div>
           <span id="agent-status-text">Агент остановлен</span>
         </div>
-        <button class="btn btn-primary" id="btn-toggle-agent" style="margin:0 12px 8px;">
+        <div id="agent-error-box" class="hidden"></div>
+        <button class="btn btn-primary" id="btn-toggle-agent" style="margin:0 8px 8px;width:calc(100% - 16px);">
           Запустить агента
         </button>
-        <button class="nav-item" data-page="settings">
-          <span>⚙️</span> Настройки
-        </button>
+        <button class="nav-item" data-page="settings"><span>⚙️</span> Настройки</button>
       </div>
     </aside>
 
-    <!-- Основной контент -->
     <main class="main-content">
 
-      <!-- Страница: Обзор -->
+      <!-- Overview -->
       <div id="page-overview">
         <h2 class="page-title">Обзор</h2>
-
         <div class="stats-grid">
           <div class="stat-card">
-            <div class="stat-label">Активные клиенты</div>
+            <div class="stat-label">Клиенты</div>
             <div class="stat-value" id="stat-clients">—</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Найдено объявлений</div>
+            <div class="stat-label">Найдено</div>
             <div class="stat-value" id="stat-listings">—</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Отправлено сообщений</div>
-            <div class="stat-value" id="stat-messages">—</div>
+            <div class="stat-label">Одобрено</div>
+            <div class="stat-value" id="stat-approved" style="color:var(--success)">—</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Сегодня действий</div>
+            <div class="stat-label">Написали</div>
+            <div class="stat-value" id="stat-messages" style="color:var(--accent)">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Сегодня</div>
             <div class="stat-value" id="stat-actions">—</div>
           </div>
         </div>
 
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Объявление</th>
-                <th>Клиент</th>
-                <th>Цена</th>
-                <th>Площадь</th>
-                <th>Статус</th>
-              </tr>
-            </thead>
-            <tbody id="overview-listings-body">
-              <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:32px;">
-                Нет данных. Добавьте клиента и запустите агента.
-              </td></tr>
-            </tbody>
-          </table>
+        <div id="overview-listings-body" class="listings-grid">
+          <div style="padding:32px;text-align:center;color:var(--text-muted);">Нет данных. Добавьте клиента и запустите агента.</div>
         </div>
 
-        <h3 style="font-size:14px;font-weight:600;margin:28px 0 12px;">Лог агента</h3>
+        <h3 style="font-size:13px;font-weight:600;margin:28px 0 12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Лог агента</h3>
         <div class="table-wrap">
           <table>
-            <thead>
-              <tr>
-                <th>Время</th>
-                <th>Действие</th>
-                <th>Детали</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Время</th><th>Действие</th><th>Детали</th></tr></thead>
             <tbody id="agent-log-body">
-              <tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:24px;">
-                Агент ещё не запускался
-              </td></tr>
+              <tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:24px;">Агент ещё не запускался</td></tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      <!-- Страница: Клиенты -->
+      <!-- Clients -->
       <div id="page-clients" class="hidden">
         <h2 class="page-title">Клиенты</h2>
-
         <div class="add-client-form">
-          <h3 style="margin-bottom:16px;font-size:15px;">Добавить клиента</h3>
+          <h3 style="margin-bottom:16px;font-size:14px;font-weight:600;color:var(--text);">Добавить клиента</h3>
+          <div class="field">
+            <label>Аватарка</label>
+            <div class="emoji-picker" id="emoji-picker">
+              <!-- filled by JS -->
+            </div>
+            <input type="hidden" id="c-emoji" value="🏠" />
+          </div>
           <div class="form-grid">
             <div class="field">
               <label>Имя клиента</label>
               <input type="text" id="c-name" placeholder="Ахмет Сейткали" />
             </div>
             <div class="field">
-              <label>Район</label>
+              <label>Район / город</label>
               <input type="text" id="c-district" placeholder="Алматы, Бостандыкский" />
             </div>
             <div class="field">
               <label>Бюджет от (₸)</label>
-              <input type="number" id="c-budget-min" placeholder="30000000" />
+              <input type="number" id="c-budget-min" placeholder="200000" />
             </div>
             <div class="field">
               <label>Бюджет до (₸)</label>
-              <input type="number" id="c-budget-max" placeholder="50000000" />
+              <input type="number" id="c-budget-max" placeholder="500000" />
             </div>
             <div class="field">
               <label>Площадь от (м²)</label>
@@ -194,86 +158,104 @@
               </select>
             </div>
           </div>
-          <button class="btn btn-primary mt-2" id="btn-add-client" style="width:auto;">
+          <div class="field" style="margin-top:4px;">
+            <label>Шаблон сообщения продавцу</label>
+            <textarea id="c-message-template" rows="3"
+              placeholder="Здравствуйте! Я риелтор, ищу квартиру для клиента. Интересует ваш объект, можно подробнее?"
+              style="background:rgba(0,0,0,0.25);border:1px solid var(--glass-border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;padding:10px 14px;outline:none;resize:vertical;font-family:var(--font);width:100%;box-shadow:var(--neo-in);transition:border-color .2s,box-shadow .2s;"></textarea>
+            <span style="font-size:11px;color:var(--text-muted);">Gemini адаптирует под каждое объявление. Пусто — Gemini напишет сам.</span>
+          </div>
+          <button class="btn btn-primary mt-2" id="btn-add-client" style="width:auto;padding:10px 24px;">
             Добавить клиента
           </button>
         </div>
 
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Клиент</th>
-                <th>Район</th>
-                <th>Бюджет</th>
-                <th>Тип</th>
-                <th>Действия</th>
-              </tr>
-            </thead>
-            <tbody id="clients-body">
-              <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:32px;">
-                Нет клиентов
-              </td></tr>
-            </tbody>
-          </table>
+        <div id="clients-body" class="client-cards-grid">
+          <div style="color:var(--text-muted);padding:24px;">Нет клиентов</div>
         </div>
       </div>
 
-      <!-- Страница: Объявления -->
+      <!-- Listings -->
       <div id="page-listings" class="hidden">
         <h2 class="page-title">Объявления</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Заголовок</th>
-                <th>Цена</th>
-                <th>Площадь</th>
-                <th>Район</th>
-                <th>AI оценка</th>
-                <th>Статус</th>
-              </tr>
-            </thead>
-            <tbody id="listings-body">
-              <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;">
-                Нет объявлений
-              </td></tr>
-            </tbody>
-          </table>
+        <div id="listings-body" class="listings-grid">
+          <div style="padding:32px;text-align:center;color:var(--text-muted);">Нет объявлений</div>
         </div>
       </div>
 
-      <!-- Страница: Сообщения -->
+      <!-- Messages -->
       <div id="page-messages" class="hidden">
         <h2 class="page-title">Отправленные сообщения</h2>
         <div class="table-wrap">
           <table>
             <thead>
-              <tr>
-                <th>Объявление</th>
-                <th>Текст сообщения</th>
-                <th>Отправлено</th>
-                <th>Статус</th>
-              </tr>
+              <tr><th>Время</th><th>Клиент</th><th>Объявление</th><th>Текст сообщения</th><th>Статус</th></tr>
             </thead>
             <tbody id="messages-body">
-              <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:32px;">
-                Нет сообщений
-              </td></tr>
+              <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:32px;">Агент ещё не отправлял сообщений</td></tr>
             </tbody>
           </table>
         </div>
       </div>
 
-      <!-- Страница: Настройки -->
+      <!-- Map -->
+      <div id="page-map" class="hidden">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
+          <h2 class="page-title" style="margin:0;">Карта поиска</h2>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+            <select id="map-client-select" style="background:rgba(0,0,0,0.25);border:1px solid var(--glass-border);border-radius:var(--radius-sm);color:var(--text);padding:8px 12px;font-size:13px;outline:none;box-shadow:var(--neo-in);">
+              <option value="">— выберите клиента —</option>
+            </select>
+            <button class="btn btn-ghost" id="btn-draw-polygon" style="padding:8px 16px;">✏️ Обвести область</button>
+            <button class="btn btn-ghost" id="btn-clear-polygon" style="padding:8px 16px;">🗑 Очистить</button>
+            <button class="btn btn-primary" id="btn-save-polygon" style="padding:8px 16px;background:var(--success);box-shadow:0 4px 16px var(--success-glow);" disabled>💾 Сохранить</button>
+          </div>
+        </div>
+        <div id="map-hint" style="font-size:12px;color:var(--text-muted);margin-bottom:10px;padding:8px 14px;background:var(--glass);border:1px solid var(--glass-border);border-radius:var(--radius-sm);display:none;align-items:center;gap:10px;">
+          Кликайте на карте чтобы добавить точки. Двойной клик — завершит область.
+          <button id="btn-finish-polygon" class="btn btn-ghost" style="padding:4px 12px;font-size:12px;">Завершить ✓</button>
+        </div>
+        <div id="map-container" style="flex:1;min-height:500px;border-radius:var(--radius);overflow:hidden;border:1px solid var(--glass-border);box-shadow:var(--neo-out);"></div>
+        <div id="map-polygon-info" style="margin-top:10px;font-size:12px;color:var(--text-muted);"></div>
+      </div>
+
+      <!-- Settings -->
       <div id="page-settings" class="hidden">
         <h2 class="page-title">Настройки</h2>
-        <div class="card" style="max-width:440px;">
+        <div class="card" style="max-width:500px;">
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:16px;">
+            Текущий токен: <span id="settings-token-status" style="color:var(--text);">проверяем...</span>
+          </p>
           <div class="field">
             <label>Gemini API Token</label>
-            <input type="password" id="settings-token" placeholder="AIza..." />
+            <input type="text" id="settings-token" placeholder="AIzaSy..." autocomplete="off" />
           </div>
-          <button class="btn btn-primary" id="btn-update-token">Сохранить токен</button>
+          <button class="btn btn-primary" id="btn-update-token" style="margin-bottom:16px;">Сохранить токен</button>
+
+          <div class="field" style="margin-top:8px;">
+            <label>Модель Gemini</label>
+            <div style="display:flex;gap:8px;">
+              <select id="settings-model-select" style="flex:1;" onchange="document.getElementById('settings-model').value=this.value">
+                <option value="">— загрузите список из API →</option>
+              </select>
+              <button class="btn btn-ghost" id="btn-load-models" title="Загрузить доступные модели из API">🔄</button>
+            </div>
+          </div>
+          <div class="field">
+            <label>Или введите название модели вручную</label>
+            <input type="text" id="settings-model" placeholder="gemini-2.5-flash-lite" />
+          </div>
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <button class="btn btn-ghost" id="btn-save-model" style="flex:1;">💾 Сохранить модель</button>
+            <button class="btn btn-ghost" id="btn-test-gemini" style="flex:1;">🧪 Тест</button>
+          </div>
+          <p id="gemini-test-result" style="font-size:12px;margin-bottom:8px;white-space:pre-wrap;line-height:1.5;"></p>
+          <hr style="border:none;border-top:1px solid var(--glass-border);margin:20px 0;" />
+          <p style="font-size:13px;font-weight:600;margin-bottom:10px;">Браузер (Krisha.kz)</p>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Открывает браузер с Krisha.kz. Если не залогинен — войдите вручную один раз.</p>
+          <button class="btn btn-ghost" id="btn-install-playwright" style="width:100%;margin-bottom:8px;">⬇️ Установить браузер (playwright install chromium)</button>
+          <button class="btn btn-ghost" id="btn-open-browser" style="width:100%;">🌐 Открыть браузер</button>
+          <p id="browser-open-result" style="font-size:12px;margin-top:8px;white-space:pre-wrap;"></p>
         </div>
       </div>
 
@@ -281,9 +263,42 @@
   </div>
 </div>
 
-<!-- Toast уведомление -->
+<!-- Client detail modal -->
+<div class="modal-overlay hidden" id="client-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">
+        <div class="client-card-avatar" id="modal-avatar">🏠</div>
+        <span id="modal-name">Клиент</span>
+      </div>
+      <button class="modal-close" id="btn-close-modal">✕</button>
+    </div>
+
+    <div class="modal-section">
+      <div class="modal-section-title">Параметры поиска</div>
+      <div id="modal-params" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+    </div>
+
+    <div class="modal-section" id="modal-message-section">
+      <div class="modal-section-title">Шаблон сообщения продавцу</div>
+      <div class="modal-message-box" id="modal-message"></div>
+    </div>
+
+    <div class="modal-section" id="modal-map-section" class="hidden">
+      <div class="modal-section-title">Область поиска на карте</div>
+      <div class="modal-map" id="modal-map-container"></div>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-top:8px;">
+      <button class="btn btn-ghost" id="btn-modal-open-map" style="flex:1;">🗺️ Редактировать область</button>
+      <button class="btn btn-danger" id="btn-modal-delete" style="flex:1;">Удалить клиента</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/static/app.js"></script>
 </body>
 </html>

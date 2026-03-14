@@ -78,37 +78,66 @@ async def close_browser():
 def _build_search_url(client: dict) -> str:
     """Строит URL поиска на Krisha.kz по параметрам клиента."""
     deal = "arenda" if client.get("deal_type") == "rent" else "prodazha"
+
+    # Если задан полигон — используем map URL Krisha
+    if client.get("area_polygon"):
+        return _build_map_url(client, deal)
+
     base = f"{KRISHA_BASE}/{deal}/kvartiry/"
 
-    # Район → попытка определить город в URL
     district: str = client.get("district") or ""
     city_slug = _city_slug(district)
     if city_slug:
         base += f"{city_slug}/"
 
-    params = []
+    params = _filter_params(client)
+    query = "&".join(params)
+    return f"{base}?{query}" if query else base
 
-    # Цена
+
+def _build_map_url(client: dict, deal: str) -> str:
+    """
+    Строит URL карты Krisha.kz с полигоном области.
+    Формат: /map/{deal}/kvartiry/?areas=p{lat},{lon},{lat},{lon},...
+    """
+    polygon = client["area_polygon"]  # "lat1,lon1,lat2,lon2,..."
+    coords = [c.strip() for c in polygon.split(",")]
+
+    # Закрываем полигон (первая точка = последняя)
+    if len(coords) >= 4 and coords[:2] != coords[-2:]:
+        coords = coords + coords[:2]
+
+    areas_param = "p" + ",".join(coords)
+
+    # Центр полигона для zoom/lat/lon параметров
+    lats = [float(coords[i]) for i in range(0, len(coords), 2)]
+    lons = [float(coords[i]) for i in range(1, len(coords), 2)]
+    center_lat = sum(lats) / len(lats)
+    center_lon = sum(lons) / len(lons)
+
+    params = [f"zoom=13&lat={center_lat:.5f}&lon={center_lon:.5f}&areas={areas_param}"]
+    params += _filter_params(client)
+
+    return f"{KRISHA_BASE}/map/{deal}/kvartiry/?{'&'.join(params)}"
+
+
+def _filter_params(client: dict) -> list[str]:
+    """Общие фильтры (цена, площадь, комнаты) для любого URL."""
+    params = []
     if client.get("budget_min"):
         params.append(f"das[price][from]={client['budget_min']}")
     if client.get("budget_max"):
         params.append(f"das[price][to]={client['budget_max']}")
-
-    # Площадь
     if client.get("area_min"):
         params.append(f"das[live.square][from]={client['area_min']}")
     if client.get("area_max"):
         params.append(f"das[live.square][to]={client['area_max']}")
-
-    # Комнаты
     rooms_raw = client.get("rooms")
     if rooms_raw and rooms_raw != "4+":
         params.append(f"das[live.rooms]={rooms_raw}")
     elif rooms_raw == "4+":
         params.append("das[live.rooms][from]=4")
-
-    query = "&".join(params)
-    return f"{base}?{query}" if query else base
+    return params
 
 
 def _city_slug(district: str) -> str:
@@ -136,8 +165,8 @@ def _parse_price(text: str) -> int | None:
 
 
 def _parse_area(text: str) -> float | None:
-    """Извлекает площадь из строки вида '65 м²'."""
-    m = re.search(r"(\d+[\.,]?\d*)", text)
+    """Извлекает площадь из строки — ищет число перед 'м²'."""
+    m = re.search(r"([\d]+[,.]?\d*)\s*м²", text)
     if m:
         return float(m.group(1).replace(",", "."))
     return None
@@ -212,6 +241,7 @@ async def _search_map(url: str) -> list[RawListing]:
                 except Exception:
                     continue
 
+
     finally:
         await page.close()
     return results
@@ -254,6 +284,101 @@ async def _search_list(url: str, max_pages: int) -> list[RawListing]:
     return results
 
 
+async def send_message(listing_url: str, message_text: str) -> bool:
+    """
+    Отправляет сообщение продавцу на странице объявления Krisha.kz.
+    Возвращает True если сообщение отправлено успешно.
+    """
+    page = await new_page()
+    try:
+        await page.goto(listing_url, wait_until="domcontentloaded", timeout=30_000)
+        await asyncio.sleep(1.5)
+
+        # Пробуем найти кнопку "Написать" / чат
+        btn_selectors = [
+            "button.send-message",
+            "[data-name='sendMessage']",
+            ".offer-chat__button",
+            "button:has-text('Написать')",
+            "a:has-text('Написать')",
+            ".contacts__btn-message",
+            "[class*='message'][class*='btn']",
+            "[class*='chat'][class*='btn']",
+        ]
+
+        btn = None
+        for sel in btn_selectors:
+            try:
+                btn = await page.wait_for_selector(sel, timeout=3_000)
+                if btn:
+                    break
+            except Exception:
+                continue
+
+        if not btn:
+            return False
+
+        await btn.click()
+        await asyncio.sleep(1)
+
+        # Ищем поле ввода сообщения
+        input_selectors = [
+            "textarea.send-message__textarea",
+            ".offer-chat__input textarea",
+            "[class*='chat'] textarea",
+            "[class*='message'] textarea",
+            "textarea[placeholder*='сообщен']",
+            "textarea[placeholder*='Сообщен']",
+        ]
+
+        textarea = None
+        for sel in input_selectors:
+            try:
+                textarea = await page.wait_for_selector(sel, timeout=3_000)
+                if textarea:
+                    break
+            except Exception:
+                continue
+
+        if not textarea:
+            return False
+
+        await textarea.click()
+        await textarea.fill(message_text)
+        await asyncio.sleep(0.8)
+
+        # Кнопка отправки
+        send_selectors = [
+            "button[type='submit']",
+            "button:has-text('Отправить')",
+            ".send-message__submit",
+            "[class*='submit']",
+            "[class*='send'][class*='button']",
+        ]
+
+        send_btn = None
+        for sel in send_selectors:
+            try:
+                send_btn = await page.query_selector(sel)
+                if send_btn:
+                    break
+            except Exception:
+                continue
+
+        if not send_btn:
+            return False
+
+        await send_btn.click()
+        await asyncio.sleep(1.5)
+
+        return True
+
+    except Exception:
+        return False
+    finally:
+        await page.close()
+
+
 async def _parse_card(card) -> RawListing | None:
     """Извлекает данные из одной карточки объявления."""
     # Ссылка и ID
@@ -283,11 +408,11 @@ async def _parse_card(card) -> RawListing | None:
     area  = _parse_area(params_text)
 
     # Район / адрес
-    district_el = await card.query_selector(".a-card__addr, .offer__location")
+    district_el = await card.query_selector(".a-card__subtitle, .a-card__addr, .offer__location")
     district_text = (await district_el.inner_text()).strip() if district_el else None
 
     # Описание (краткое)
-    desc_el = await card.query_selector(".a-card__description")
+    desc_el = await card.query_selector(".a-card__text-preview, .a-card__description")
     desc_text = (await desc_el.inner_text()).strip() if desc_el else None
 
     return RawListing(
