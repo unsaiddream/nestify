@@ -98,11 +98,15 @@
             <div class="stat-value" id="stat-listings">—</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Отправлено сообщений</div>
-            <div class="stat-value" id="stat-messages">—</div>
+            <div class="stat-label">Одобрено Gemini</div>
+            <div class="stat-value" id="stat-approved" style="color:var(--success)">—</div>
           </div>
           <div class="stat-card">
-            <div class="stat-label">Сегодня действий</div>
+            <div class="stat-label">Написали продавцам</div>
+            <div class="stat-value" id="stat-messages" style="color:var(--accent)">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Действий сегодня</div>
             <div class="stat-value" id="stat-actions">—</div>
           </div>
         </div>
@@ -115,6 +119,7 @@
                 <th>Клиент</th>
                 <th>Цена</th>
                 <th>Площадь</th>
+                <th>AI оценка</th>
                 <th>Статус</th>
               </tr>
             </thead>
@@ -250,15 +255,16 @@
           <table>
             <thead>
               <tr>
+                <th>Время</th>
+                <th>Клиент</th>
                 <th>Объявление</th>
                 <th>Текст сообщения</th>
-                <th>Отправлено</th>
                 <th>Статус</th>
               </tr>
             </thead>
             <tbody id="messages-body">
-              <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:32px;">
-                Нет сообщений
+              <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:32px;">
+                Агент ещё не отправлял сообщений
               </td></tr>
             </tbody>
           </table>

@@ -8,7 +8,7 @@ import logging
 
 import aiosqlite
 
-from agent.browser import search_listings
+from agent.browser import search_listings, send_message
 from agent.gemini import analyze_listing
 from database.db import DB_PATH
 
@@ -103,6 +103,25 @@ async def _process_client(client: dict):
                 f"Объявление {raw.krisha_id}: score={analysis.score}, {status}",
             )
 
+            # Отправляем сообщение продавцу если объявление одобрено
+            if analysis.approved and analysis.message:
+                await asyncio.sleep(2)  # пауза перед отправкой
+                ok = await send_message(raw.url, analysis.message)
+                if ok:
+                    await _save_message(listing_id, analysis.message)
+                    await _update_listing_status(listing_id, "messaged")
+                    await _log_action(
+                        "send_message",
+                        f"Объявление {raw.krisha_id}: сообщение отправлено",
+                    )
+                    logger.info(f"  💬 Сообщение отправлено: {raw.krisha_id}")
+                else:
+                    await _log_action(
+                        "message_error",
+                        f"Объявление {raw.krisha_id}: не удалось отправить сообщение",
+                    )
+                    logger.warning(f"  ⚠️ Не удалось отправить: {raw.krisha_id}")
+
         except Exception as e:
             logger.error(f"Ошибка Gemini для {raw.krisha_id}: {e}")
 
@@ -148,6 +167,24 @@ async def _update_listing_analysis(listing_id: int, score: int, comment: str, st
         await db.execute(
             "UPDATE listings SET ai_score = ?, ai_comment = ?, status = ? WHERE id = ?",
             (score, comment, status, listing_id),
+        )
+        await db.commit()
+
+
+async def _save_message(listing_id: int, text: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "INSERT INTO messages (listing_id, text, status) VALUES (?, ?, 'sent')",
+            (listing_id, text),
+        )
+        await db.commit()
+
+
+async def _update_listing_status(listing_id: int, status: str):
+    async with aiosqlite.connect(DB_PATH) as db:
+        await db.execute(
+            "UPDATE listings SET status = ? WHERE id = ?",
+            (status, listing_id),
         )
         await db.commit()
 
