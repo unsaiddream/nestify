@@ -468,20 +468,38 @@ async function loadSettingsPage() {
 async function loadGeminiModels() {
   const btn = document.getElementById('btn-load-models');
   const sel = document.getElementById('settings-model-select');
-  const currentModel = document.getElementById('settings-model').value;
   if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
   try {
     const data = await api('GET', '/api/auth/list-models');
     if (data.status === 'ok' && data.models.length) {
       sel.innerHTML = data.models.map(m => `<option value="${m}">${m}</option>`).join('');
-      // Выбираем текущую модель если она в списке
-      const saved = currentModel || (await api('GET', '/api/auth/gemini-model').catch(() => ({}))).model;
-      const match = [...sel.options].find(o => o.value === saved);
-      if (match) sel.value = saved;
-      else sel.selectedIndex = 0;
-      // Синхронизируем поле ввода с выбранным значением
-      if (!currentModel) document.getElementById('settings-model').value = sel.value;
       sel.onchange = () => { document.getElementById('settings-model').value = sel.value; };
+
+      // Берём текущую сохранённую модель
+      let saved = document.getElementById('settings-model').value;
+      if (!saved) {
+        try { saved = (await api('GET', '/api/auth/gemini-model')).model; } catch (_) {}
+      }
+
+      // Если сохранённая модель — старая 2.0 (недоступна для новых пользователей),
+      // автоматически переключаемся на лучшую доступную 2.5 модель
+      const isDeprecated = saved && (saved.startsWith('gemini-2.0') || saved.startsWith('gemini-1.'));
+      const best25 = data.models.find(m => m.startsWith('gemini-2.5'));
+
+      let pick = null;
+      if (!isDeprecated && saved) {
+        pick = data.models.find(m => m === saved);
+      }
+      if (!pick) pick = best25 || data.models[0];
+
+      sel.value = pick;
+      document.getElementById('settings-model').value = pick;
+
+      // Автоматически сохраняем если модель изменилась
+      if (pick !== saved) {
+        await api('POST', '/api/auth/gemini-model', { model: pick });
+        showToast(`Модель обновлена: ${pick}`);
+      }
     } else {
       sel.innerHTML = `<option value="">⚠ ${data.message || 'Ошибка загрузки'}</option>`;
     }
