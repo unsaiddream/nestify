@@ -908,44 +908,86 @@ tbody td {
 }
 
 /* ═══════════════════════════════════════════════════════════
-   СВЕТЛАЯ ТЕМА — iOS Glass Morphism
+   СВЕТЛАЯ ТЕМА — настоящий iOS Glass Morphism
+   Секрет: цветной фон с блобами + полупрозрачное стекло,
+   которое размывает то что за ним. Без цветного фона
+   backdrop-filter не создаёт никакого эффекта.
    ═══════════════════════════════════════════════════════════ */
 
 [data-theme="light"] {
-  --bg:           #f2f2f7;
-  --bg2:          #e5e5ea;
-  --glass:        rgba(255,255,255,0.72);
-  --glass-hover:  rgba(255,255,255,0.9);
-  --glass-border: rgba(60,60,67,0.1);
-  --glass-strong: rgba(255,255,255,0.85);
-  --neo-out:      0 2px 16px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.05);
-  --neo-in:       inset 0 1px 3px rgba(0,0,0,0.07);
+  /* Переменные цветов */
+  --glass:        rgba(255,255,255,0.48);
+  --glass-hover:  rgba(255,255,255,0.62);
+  --glass-border: rgba(255,255,255,0.75);
+  --glass-strong: rgba(255,255,255,0.7);
+  /* Тень стекла: внешняя мягкая + inset highlight сверху (ключ iOS-эффекта) */
+  --neo-out:      0 8px 32px rgba(31,38,135,0.12),
+                  0 2px 8px rgba(0,0,0,0.08),
+                  inset 0 1px 0 rgba(255,255,255,0.85);
+  --neo-in:       inset 0 2px 6px rgba(0,0,0,0.06),
+                  inset 0 1px 0 rgba(255,255,255,0.5);
   --accent:       #007AFF;
-  --accent-glow:  rgba(0,122,255,0.18);
+  --accent-glow:  rgba(0,122,255,0.25);
   --accent-h:     #0071e3;
   --success:      #34C759;
-  --success-glow: rgba(52,199,89,0.2);
+  --success-glow: rgba(52,199,89,0.25);
   --warning:      #FF9500;
   --danger:       #FF3B30;
-  --danger-glow:  rgba(255,59,48,0.18);
+  --danger-glow:  rgba(255,59,48,0.22);
   --text:         #1c1c1e;
-  --text-muted:   #8e8e93;
+  --text-muted:   #6e6e73;
   --text-dim:     #3a3a3c;
-  --blur:         saturate(180%) blur(20px);
+  /* iOS blur — saturate даёт насыщенность, важно для цветного фона */
+  --blur:         blur(28px) saturate(180%);
+  --radius:       18px;
+  --radius-sm:    12px;
 }
 
+/* ФУНДАМЕНТ: цветной iOS-wallpaper фон с блобами.
+   Именно через него стекло будет "просвечивать". */
 [data-theme="light"] body {
-  background: var(--bg);
+  background-color: #b8d4f0;
   background-image:
-    radial-gradient(ellipse 80% 50% at 20% 0%,  rgba(0,122,255,0.05)  0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(52,199,89,0.04)  0%, transparent 50%);
+    /* Большой голубой блоб слева-сверху */
+    radial-gradient(ellipse 75% 65% at 10% 15%,
+      rgba(80,160,255,0.75) 0%, transparent 60%),
+    /* Бирюзовый блоб справа-сверху */
+    radial-gradient(ellipse 55% 55% at 88% 12%,
+      rgba(60,210,200,0.65) 0%, transparent 55%),
+    /* Фиолетовый блоб по центру */
+    radial-gradient(ellipse 50% 45% at 55% 55%,
+      rgba(160,130,255,0.45) 0%, transparent 55%),
+    /* Тёплый персиковый блоб справа-снизу */
+    radial-gradient(ellipse 45% 50% at 85% 82%,
+      rgba(255,170,110,0.45) 0%, transparent 55%),
+    /* Зелёный блоб слева-снизу */
+    radial-gradient(ellipse 40% 40% at 15% 80%,
+      rgba(60,205,140,0.4) 0%, transparent 50%);
+  /* Анимация медленного движения блобов */
+  animation: blobShift 18s ease-in-out infinite alternate;
 }
 
+@keyframes blobShift {
+  0%   { background-position: 0% 0%, 100% 0%, 50% 50%, 90% 90%, 10% 90%; }
+  50%  { background-position: 5% 10%, 95% 8%, 52% 48%, 88% 85%, 12% 88%; }
+  100% { background-position: 8% 5%, 92% 12%, 48% 52%, 92% 88%, 8% 92%; }
+}
+
+/* Сайдбар — матовое стекло */
 [data-theme="light"] .sidebar {
-  background: rgba(242,242,247,0.85);
+  background: rgba(255,255,255,0.52) !important;
+  backdrop-filter: var(--blur);
+  -webkit-backdrop-filter: var(--blur);
+  border-right: 1px solid rgba(255,255,255,0.7);
+  box-shadow: 2px 0 24px rgba(31,38,135,0.08);
 }
 
-/* Убираем gradient text — просто тёмный цвет */
+/* Основной контент — слегка подсвечиваем фон */
+[data-theme="light"] .main-content {
+  background: rgba(255,255,255,0.08);
+}
+
+/* Убираем gradient text, используем чёрный */
 [data-theme="light"] .page-title,
 [data-theme="light"] .card h1,
 [data-theme="light"] .stat-card .stat-value,
@@ -956,27 +998,103 @@ tbody td {
   -webkit-text-fill-color: var(--text);
 }
 
+/* Стат-карточки — стекло с highlight */
+[data-theme="light"] .stat-card {
+  background: rgba(255,255,255,0.52);
+  border: 1px solid rgba(255,255,255,0.78);
+  box-shadow: var(--neo-out);
+}
+
+[data-theme="light"] .stat-card:hover {
+  background: rgba(255,255,255,0.62);
+  border-color: rgba(255,255,255,0.9);
+}
+
+/* Карточки (onboarding, settings) */
+[data-theme="light"] .card {
+  background: rgba(255,255,255,0.55);
+  border: 1px solid rgba(255,255,255,0.78);
+  box-shadow: var(--neo-out);
+}
+
+/* Форма добавления клиента */
+[data-theme="light"] .add-client-form {
+  background: rgba(255,255,255,0.52);
+  border: 1px solid rgba(255,255,255,0.78);
+  box-shadow: var(--neo-out);
+}
+
+/* Карточки клиентов */
+[data-theme="light"] .client-card {
+  background: rgba(255,255,255,0.5);
+  border: 1px solid rgba(255,255,255,0.75);
+  box-shadow: var(--neo-out);
+}
+
+[data-theme="light"] .client-card:hover {
+  background: rgba(255,255,255,0.62);
+  border-color: rgba(255,255,255,0.9);
+  box-shadow: var(--neo-out), 0 0 20px rgba(0,122,255,0.12);
+}
+
+/* Строки объявлений */
+[data-theme="light"] .listing-row {
+  background: rgba(255,255,255,0.5);
+  border: 1px solid rgba(255,255,255,0.72);
+  box-shadow: 0 2px 12px rgba(31,38,135,0.08),
+              inset 0 1px 0 rgba(255,255,255,0.9);
+}
+
+[data-theme="light"] .listing-row:hover {
+  background: rgba(255,255,255,0.65);
+  border-color: rgba(255,255,255,0.9);
+}
+
+/* Таблица */
+[data-theme="light"] .table-wrap {
+  background: rgba(255,255,255,0.5);
+  border: 1px solid rgba(255,255,255,0.72);
+  box-shadow: var(--neo-out);
+}
+
+[data-theme="light"] thead th {
+  background: rgba(255,255,255,0.35);
+  color: var(--text-muted);
+  border-bottom: 1px solid rgba(255,255,255,0.5);
+}
+
+[data-theme="light"] tbody tr {
+  border-bottom-color: rgba(255,255,255,0.3);
+}
+
+[data-theme="light"] tbody tr:hover {
+  background: rgba(255,255,255,0.2);
+}
+
 /* Поля ввода */
 [data-theme="light"] .field input,
 [data-theme="light"] .field select,
 [data-theme="light"] .field textarea {
-  background: rgba(255,255,255,0.8) !important;
+  background: rgba(255,255,255,0.6) !important;
   color: var(--text) !important;
-  border-color: rgba(60,60,67,0.15) !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
-}
-
-[data-theme="light"] .field select option,
-[data-theme="light"] select option {
-  background: #ffffff;
-  color: #1c1c1e;
+  border: 1px solid rgba(255,255,255,0.8) !important;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.05),
+              inset 0 1px 0 rgba(255,255,255,0.7) !important;
 }
 
 [data-theme="light"] .field input:focus,
 [data-theme="light"] .field select:focus,
 [data-theme="light"] .field textarea:focus {
-  border-color: rgba(0,122,255,0.5) !important;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 0 0 3px var(--accent-glow) !important;
+  background: rgba(255,255,255,0.75) !important;
+  border-color: rgba(0,122,255,0.6) !important;
+  box-shadow: inset 0 2px 6px rgba(0,0,0,0.04),
+              0 0 0 3px rgba(0,122,255,0.18) !important;
+}
+
+[data-theme="light"] .field select option,
+[data-theme="light"] select option {
+  background: #e8f0fe;
+  color: #1c1c1e;
 }
 
 [data-theme="light"] .field input::placeholder,
@@ -986,98 +1104,159 @@ tbody td {
 
 /* Textarea c inline-стилем */
 [data-theme="light"] #c-message-template {
-  background: rgba(255,255,255,0.8) !important;
+  background: rgba(255,255,255,0.6) !important;
   color: var(--text) !important;
-  border-color: rgba(60,60,67,0.15) !important;
+  border: 1px solid rgba(255,255,255,0.8) !important;
 }
 
-/* Таблица */
-[data-theme="light"] thead th {
-  background: rgba(0,0,0,0.03);
+/* Кнопки */
+[data-theme="light"] .btn-ghost {
+  background: rgba(255,255,255,0.52);
+  border: 1px solid rgba(255,255,255,0.75);
+  color: var(--text-dim);
+  box-shadow: var(--neo-out);
+}
+
+[data-theme="light"] .btn-ghost:hover {
+  background: rgba(255,255,255,0.7);
+  border-color: rgba(255,255,255,0.9);
+  color: var(--text);
+}
+
+/* Навигация */
+[data-theme="light"] .nav-item {
   color: var(--text-muted);
 }
 
-[data-theme="light"] tbody tr {
-  border-bottom-color: rgba(0,0,0,0.04);
+[data-theme="light"] .nav-item:hover {
+  background: rgba(255,255,255,0.4);
+  color: var(--text-dim);
+  border-color: rgba(255,255,255,0.6);
 }
 
-[data-theme="light"] tbody tr:hover {
-  background: rgba(0,0,0,0.02);
+[data-theme="light"] .nav-item.active {
+  background: rgba(0,122,255,0.12);
+  color: var(--accent);
+  border-color: rgba(0,122,255,0.25);
+  box-shadow: 0 0 12px rgba(0,122,255,0.1);
 }
 
 /* Модал */
 [data-theme="light"] .modal {
-  background: rgba(255,255,255,0.92);
+  background: rgba(255,255,255,0.72);
+  border: 1px solid rgba(255,255,255,0.85);
+  box-shadow: 0 24px 64px rgba(31,38,135,0.18),
+              inset 0 1px 0 rgba(255,255,255,0.9);
 }
 
 [data-theme="light"] .modal-overlay {
-  background: rgba(0,0,0,0.25);
+  background: rgba(30,40,80,0.18);
+  backdrop-filter: blur(8px);
 }
 
 [data-theme="light"] .modal-message-box {
-  background: rgba(0,0,0,0.03);
-  border-color: rgba(60,60,67,0.1);
+  background: rgba(255,255,255,0.4);
+  border: 1px solid rgba(255,255,255,0.6);
+}
+
+[data-theme="light"] .modal-close {
+  background: rgba(255,255,255,0.5);
+  border-color: rgba(255,255,255,0.7);
 }
 
 /* Toast */
 [data-theme="light"] .toast {
-  background: rgba(255,255,255,0.92);
+  background: rgba(255,255,255,0.72);
+  border: 1px solid rgba(255,255,255,0.85);
   color: var(--text);
+  box-shadow: var(--neo-out);
 }
 
 /* Emoji */
 [data-theme="light"] .emoji-option {
-  background: rgba(255,255,255,0.7);
-  border-color: rgba(60,60,67,0.12);
+  background: rgba(255,255,255,0.55);
+  border-color: rgba(255,255,255,0.75);
 }
 
-/* Nav */
-[data-theme="light"] .nav-item:hover {
-  background: rgba(0,0,0,0.04);
-  color: var(--text-dim);
-  border-color: rgba(0,0,0,0.06);
+[data-theme="light"] .emoji-option:hover {
+  background: rgba(255,255,255,0.75);
+  border-color: rgba(0,122,255,0.5);
+}
+
+[data-theme="light"] .emoji-option.selected {
+  background: rgba(0,122,255,0.15);
+  border-color: rgba(0,122,255,0.4);
 }
 
 /* Map select (inline style override) */
 [data-theme="light"] #map-client-select {
-  background: rgba(255,255,255,0.8) !important;
+  background: rgba(255,255,255,0.6) !important;
   color: var(--text) !important;
-  border-color: rgba(60,60,67,0.15) !important;
+  border: 1px solid rgba(255,255,255,0.8) !important;
 }
 
 /* Map hint */
 [data-theme="light"] #map-hint {
-  background: rgba(255,255,255,0.8);
-  border-color: rgba(60,60,67,0.1);
+  background: rgba(255,255,255,0.55);
+  border-color: rgba(255,255,255,0.7);
+}
+
+/* Map container border */
+[data-theme="light"] #map-container {
+  border: 1px solid rgba(255,255,255,0.7) !important;
+  box-shadow: var(--neo-out) !important;
 }
 
 /* Agent error */
 [data-theme="light"] #agent-error-box {
-  background: rgba(255,59,48,.06);
+  background: rgba(255,59,48,0.08);
+  border-color: rgba(255,59,48,0.2);
 }
 
-/* Scrollbar */
+/* Glass panel */
+[data-theme="light"] .glass-panel {
+  background: rgba(255,255,255,0.52);
+  border: 1px solid rgba(255,255,255,0.75);
+  box-shadow: var(--neo-out);
+}
+
+/* Param tags */
+[data-theme="light"] .param-tag {
+  background: rgba(255,255,255,0.55);
+  border-color: rgba(255,255,255,0.7);
+  color: var(--text-dim);
+}
+
+/* Client chip */
+[data-theme="light"] .client-chip {
+  background: rgba(0,122,255,0.1);
+  border-color: rgba(0,122,255,0.2);
+}
+
+/* Settings card */
+[data-theme="light"] #page-settings input,
+[data-theme="light"] #page-settings select {
+  background: rgba(255,255,255,0.6) !important;
+  color: var(--text) !important;
+  border: 1px solid rgba(255,255,255,0.8) !important;
+}
+
+/* Скроллбар */
 [data-theme="light"] ::-webkit-scrollbar-thumb {
-  background: rgba(0,0,0,0.12);
+  background: rgba(255,255,255,0.45);
 }
 
 [data-theme="light"] ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0,0,0,0.2);
+  background: rgba(255,255,255,0.65);
 }
 
-/* Settings card inner elements */
-[data-theme="light"] #page-settings input,
-[data-theme="light"] #page-settings select {
-  background: rgba(255,255,255,0.8) !important;
-  color: var(--text) !important;
-}
-
-/* Theme toggle button собственные цвета в светлой теме */
+/* Theme toggle в светлой теме */
 [data-theme="light"] .theme-toggle {
-  background: rgba(255,255,255,0.72);
-  border-color: rgba(60,60,67,0.14);
+  background: rgba(255,255,255,0.55);
+  border-color: rgba(255,255,255,0.78);
+  box-shadow: var(--neo-out);
 }
 
 [data-theme="light"] .theme-toggle:hover {
-  background: rgba(255,255,255,0.9);
+  background: rgba(255,255,255,0.72);
 }
