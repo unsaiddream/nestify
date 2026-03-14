@@ -4,6 +4,31 @@
 
 const API = '';
 
+// ── Theme ─────────────────────────────────────────────────────────────────────
+
+(function initTheme() {
+  const saved = localStorage.getItem('nestify-theme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  // Иконки обновятся после рендера DOM
+  document.addEventListener('DOMContentLoaded', () => updateThemeIcons(saved));
+})();
+
+function updateThemeIcons(theme) {
+  document.querySelectorAll('.theme-icon').forEach(el => {
+    el.textContent = theme === 'dark' ? '☀️' : '🌙';
+  });
+}
+
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-theme-toggle]');
+  if (!btn) return;
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('nestify-theme', next);
+  updateThemeIcons(next);
+});
+
 // ── Utils ────────────────────────────────────────────────────────────────────
 
 async function api(method, path, body = null) {
