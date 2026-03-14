@@ -165,8 +165,8 @@ def _parse_price(text: str) -> int | None:
 
 
 def _parse_area(text: str) -> float | None:
-    """Извлекает площадь из строки вида '65 м²'."""
-    m = re.search(r"(\d+[\.,]?\d*)", text)
+    """Извлекает площадь из строки — ищет число перед 'м²'."""
+    m = re.search(r"([\d]+[,.]?\d*)\s*м²", text)
     if m:
         return float(m.group(1).replace(",", "."))
     return None

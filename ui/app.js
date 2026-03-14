@@ -1,11 +1,11 @@
 /**
  * Nestify — фронтенд логика
- * Простой SPA без фреймворков.
+ * SPA без фреймворков. Glass + Neomorphism UI.
  */
 
-const API = '';  // FastAPI на том же домене
+const API = '';
 
-// ── Утилиты ─────────────────────────────────────────────────────────────────
+// ── Утилиты ──────────────────────────────────────────────────────────────────
 
 async function api(method, path, body = null) {
   const opts = {
@@ -26,7 +26,7 @@ function showToast(msg, type = 'success') {
   el.textContent = msg;
   el.className = `toast ${type} show`;
   clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove('show'), 3000);
+  el._t = setTimeout(() => el.classList.remove('show'), 3200);
 }
 
 function showScreen(id) {
@@ -49,7 +49,13 @@ function fmt(n) {
   return Number(n).toLocaleString('ru-RU');
 }
 
-// ── Онбординг: только токен ───────────────────────────────────────────────────
+function fmtPrice(n) {
+  if (!n) return '—';
+  if (n >= 1_000_000) return (n / 1_000_000).toFixed(1).replace('.0', '') + ' млн ₸';
+  return fmt(n) + ' ₸';
+}
+
+// ── Онбординг ─────────────────────────────────────────────────────────────────
 
 async function checkOnboarding() {
   try {
@@ -68,6 +74,9 @@ async function checkOnboarding() {
 document.getElementById('btn-save-token').addEventListener('click', async () => {
   const token = document.getElementById('gemini-token-input').value.trim();
   if (!token) { showToast('Введите токен', 'error'); return; }
+  const btn = document.getElementById('btn-save-token');
+  btn.disabled = true;
+  btn.textContent = 'Сохраняем...';
   try {
     await api('POST', '/api/auth/gemini-token', { token });
     showToast('Токен сохранён ✓');
@@ -75,10 +84,12 @@ document.getElementById('btn-save-token').addEventListener('click', async () => 
     initDashboard();
   } catch (e) {
     showToast(e.message, 'error');
+    btn.disabled = false;
+    btn.textContent = 'Открыть дашборд →';
   }
 });
 
-// ── Дашборд ──────────────────────────────────────────────────────────────────
+// ── Дашборд ───────────────────────────────────────────────────────────────────
 
 document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -93,11 +104,11 @@ document.querySelectorAll('.nav-item[data-page]').forEach(btn => {
 
 async function initDashboard() {
   showPage('overview');
+  initEmojiPicker();
   await loadStats();
   await loadOverviewListings();
   await loadAgentLog();
   await updateAgentStatus();
-  // Автообновление каждые 15 секунд пока открыт дашборд
   setInterval(async () => {
     await loadStats();
     await loadOverviewListings();
@@ -106,7 +117,8 @@ async function initDashboard() {
   }, 15_000);
 }
 
-// Статистика
+// ── Статистика ─────────────────────────────────────────────────────────────────
+
 async function loadStats() {
   try {
     const s = await api('GET', '/api/listings/stats');
@@ -118,31 +130,14 @@ async function loadStats() {
   } catch (_) {}
 }
 
-// Последние объявления на главном экране
-async function loadOverviewListings() {
-  try {
-    const rows = await api('GET', '/api/listings/?limit=10');
-    const tbody = document.getElementById('overview-listings-body');
-    if (!rows.length) return;
-    tbody.innerHTML = rows.map(r => `
-      <tr>
-        <td><a href="${r.url || '#'}" target="_blank" style="color:var(--accent);text-decoration:none;">
-          ${r.title || r.krisha_id || '—'}
-        </a></td>
-        <td>${r.client_id || '—'}</td>
-        <td>${fmt(r.price)} ₸</td>
-        <td>${r.area ? r.area + ' м²' : '—'}</td>
-        <td>${scoreCell(r.ai_score)}</td>
-        <td>${statusBadge(r.status)}</td>
-      </tr>
-    `).join('');
-  } catch (_) {}
-}
+// ── Рендер строки объявления ───────────────────────────────────────────────────
 
-function scoreCell(score) {
-  if (score === null || score === undefined) return '<span style="color:var(--text-muted)">—</span>';
-  const color = score >= 7 ? 'var(--success)' : score >= 5 ? 'var(--warning)' : 'var(--danger)';
-  return `<span style="font-weight:600;color:${color}">${score}/10</span>`;
+function scorePill(score) {
+  if (score === null || score === undefined || score === 0) {
+    return `<span class="score-pill none">—</span>`;
+  }
+  const cls = score >= 7 ? 'high' : score >= 5 ? 'mid' : 'low';
+  return `<span class="score-pill ${cls}">${score}/10</span>`;
 }
 
 function statusBadge(status) {
@@ -156,110 +151,95 @@ function statusBadge(status) {
   return `<span class="badge ${cls}">${label}</span>`;
 }
 
-// ── Клиенты ──────────────────────────────────────────────────────────────────
+// Пытается извлечь площадь из заголовка если в базе не записана
+function guessArea(r) {
+  if (r.area && r.area > 5) return r.area + ' м²';
+  if (r.title) {
+    const m = r.title.match(/([\d]+[,.]?\d*)\s*м²/);
+    if (m) return parseFloat(m[1].replace(',', '.')) + ' м²';
+    const m2 = r.title.match(/(\d+)\s*кв/i);
+    if (m2) return m2[1] + ' м²';
+  }
+  return '—';
+}
 
-async function loadClients() {
+function renderListingRow(r) {
+  const clientHtml = r.client_name
+    ? `<span class="client-chip">
+         <span class="client-avatar">${r.client_emoji || '🏠'}</span>
+         ${r.client_name}
+       </span>`
+    : `<span style="color:var(--text-muted);font-size:12px;">—</span>`;
+
+  const metaParts = [];
+  const area = guessArea(r);
+  if (area !== '—') metaParts.push(area);
+  if (r.district) metaParts.push(r.district);
+
+  const div = document.createElement('div');
+  div.className = 'listing-row';
+  div.innerHTML = `
+    <div>
+      <a href="${r.url || '#'}" target="_blank" class="listing-title"
+         title="${(r.title || '').replace(/"/g, '&quot;')}">
+        ${r.title || r.krisha_id || '—'}
+      </a>
+      ${metaParts.length ? `<div class="listing-meta">${metaParts.join(' · ')}</div>` : ''}
+    </div>
+    <div>${clientHtml}</div>
+    <div class="listing-price">${fmtPrice(r.price)}</div>
+    <div>${scorePill(r.ai_score)}</div>
+    <div>${statusBadge(r.status)}</div>
+  `;
+  return div;
+}
+
+// ── Обзор — последние объявления ──────────────────────────────────────────────
+
+async function loadOverviewListings() {
   try {
-    const rows = await api('GET', '/api/listings/clients');
-    const tbody = document.getElementById('clients-body');
+    const rows = await api('GET', '/api/listings/?limit=10');
+    const grid = document.getElementById('overview-listings-grid');
+    const empty = document.getElementById('overview-empty');
+
+    // Убираем старые строки (кроме header и empty)
+    grid.querySelectorAll('.listing-row:not(.header)').forEach(el => el.remove());
+    if (empty) empty.remove();
+
     if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:32px;">Нет клиентов</td></tr>';
+      const emptyEl = document.createElement('div');
+      emptyEl.id = 'overview-empty';
+      emptyEl.className = 'empty-state';
+      emptyEl.innerHTML = '<div class="empty-icon">🏘️</div>Нет данных. Добавьте клиента и запустите агента.';
+      grid.appendChild(emptyEl);
       return;
     }
-    tbody.innerHTML = rows.map(r => `
-      <tr>
-        <td>${r.name}</td>
-        <td>${r.district || '—'}</td>
-        <td>${r.budget_min ? fmt(r.budget_min) + ' – ' + fmt(r.budget_max) + ' ₸' : '—'}</td>
-        <td>${r.deal_type === 'rent' ? 'Аренда' : 'Покупка'}</td>
-        <td>
-          <button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;"
-            onclick="deleteClient(${r.id})">Удалить</button>
-        </td>
-      </tr>
-    `).join('');
-  } catch (e) {
-    showToast(e.message, 'error');
-  }
+
+    rows.forEach(r => grid.appendChild(renderListingRow(r)));
+  } catch (_) {}
 }
 
-document.getElementById('btn-add-client').addEventListener('click', async () => {
-  const body = {
-    name:             document.getElementById('c-name').value.trim(),
-    district:         document.getElementById('c-district').value.trim() || null,
-    budget_min:       parseInt(document.getElementById('c-budget-min').value) || null,
-    budget_max:       parseInt(document.getElementById('c-budget-max').value) || null,
-    area_min:         parseInt(document.getElementById('c-area-min').value)   || null,
-    area_max:         parseInt(document.getElementById('c-area-max').value)   || null,
-    rooms:            document.getElementById('c-rooms').value     || null,
-    deal_type:        document.getElementById('c-deal-type').value,
-    message_template: document.getElementById('c-message-template').value.trim() || null,
-  };
-  if (!body.name) { showToast('Введите имя клиента', 'error'); return; }
-  try {
-    await api('POST', '/api/listings/clients', body);
-    showToast('Клиент добавлен ✓');
-    loadClients();
-    loadStats();
-    ['c-name','c-district','c-budget-min','c-budget-max','c-area-min','c-area-max','c-message-template'].forEach(id => {
-      document.getElementById(id).value = '';
-    });
-  } catch (e) {
-    showToast(e.message, 'error');
-  }
-});
+// ── Лог агента ────────────────────────────────────────────────────────────────
 
-async function deleteClient(id) {
-  try {
-    await api('DELETE', `/api/listings/clients/${id}`);
-    showToast('Клиент удалён');
-    loadClients();
-    loadStats();
-  } catch (e) {
-    showToast(e.message, 'error');
-  }
-}
-
-// ── Объявления ────────────────────────────────────────────────────────────────
-
-async function loadListings() {
-  try {
-    const rows = await api('GET', '/api/listings/');
-    const tbody = document.getElementById('listings-body');
-    if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;">Нет объявлений</td></tr>';
-      return;
-    }
-    tbody.innerHTML = rows.map(r => `
-      <tr>
-        <td><a href="${r.url || '#'}" target="_blank" style="color:var(--accent);text-decoration:none;">
-          ${r.title || r.krisha_id || '—'}
-        </a></td>
-        <td>${fmt(r.price)} ₸</td>
-        <td>${r.area ? r.area + ' м²' : '—'}</td>
-        <td>${r.district || '—'}</td>
-        <td>${r.ai_score !== null ? r.ai_score + '/10' : '—'}</td>
-        <td>${statusBadge(r.status)}</td>
-      </tr>
-    `).join('');
-  } catch (e) {
-    showToast(e.message, 'error');
-  }
-}
-
-// Лог агента
 async function loadAgentLog() {
   try {
     const rows = await api('GET', '/api/agent/log?limit=20');
     const tbody = document.getElementById('agent-log-body');
     if (!rows.length) return;
-    const actionLabel = { search: '🔍 Поиск', analyze: '🤖 Анализ', search_error: '❌ Ошибка', send_message: '💬 Сообщение' };
+    const actionLabel = {
+      search:       '🔍 Поиск',
+      analyze:      '🤖 Анализ',
+      search_error: '❌ Ошибка',
+      send_message: '💬 Сообщение',
+    };
     tbody.innerHTML = rows.map(r => {
-      const time = new Date(r.created_at + 'Z').toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const time = new Date(r.created_at + 'Z').toLocaleTimeString('ru-RU', {
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+      });
       return `<tr>
-        <td style="color:var(--text-muted);white-space:nowrap;">${time}</td>
+        <td style="color:var(--text-muted);white-space:nowrap;font-size:12px;">${time}</td>
         <td>${actionLabel[r.action] || r.action}</td>
-        <td style="color:var(--text-muted);">${r.details || ''}</td>
+        <td style="color:var(--text-muted);font-size:12px;">${r.details || ''}</td>
       </tr>`;
     }).join('');
   } catch (_) {}
@@ -281,7 +261,9 @@ async function updateAgentStatus() {
     dot.classList.toggle('running', running);
     text.textContent = running ? 'Агент работает' : 'Агент остановлен';
     btn.textContent  = running ? 'Остановить агента' : 'Запустить агента';
-    btn.style.background = running ? 'var(--danger)' : '';
+    btn.style.background = running
+      ? 'linear-gradient(135deg, var(--danger), #d44)'
+      : '';
 
     if (last_error) {
       errorBox.textContent = '⚠️ ' + last_error;
@@ -307,6 +289,285 @@ document.getElementById('btn-toggle-agent').addEventListener('click', async () =
   }
 });
 
+// ── Эмодзи пикер ──────────────────────────────────────────────────────────────
+
+const EMOJIS = [
+  '🏠','🏡','🏢','🏗️','🏘️','🏙️',
+  '🏛️','🏟️','🏰','🏯','🗼','🗽',
+  '👨','👩','👦','👧','👴','👵',
+  '💼','📋','📊','💰','💎','🔑',
+  '⭐','🌟','✨','🎯','🚀','💡',
+  '🌆','🌇','🌃','🌉','🌁','🗺️',
+];
+
+let _selectedEmoji = '🏠';
+
+function initEmojiPicker() {
+  const picker = document.getElementById('emoji-picker');
+  const preview = document.getElementById('emoji-preview');
+  const hiddenInput = document.getElementById('c-emoji');
+
+  picker.innerHTML = EMOJIS.map(e =>
+    `<div class="emoji-option${e === _selectedEmoji ? ' selected' : ''}"
+          data-emoji="${e}" title="${e}">${e}</div>`
+  ).join('');
+
+  picker.querySelectorAll('.emoji-option').forEach(opt => {
+    opt.addEventListener('click', () => {
+      _selectedEmoji = opt.dataset.emoji;
+      preview.textContent = _selectedEmoji;
+      hiddenInput.value = _selectedEmoji;
+      picker.querySelectorAll('.emoji-option').forEach(o =>
+        o.classList.toggle('selected', o.dataset.emoji === _selectedEmoji)
+      );
+      picker.classList.add('hidden');
+    });
+  });
+
+  preview.addEventListener('click', () => {
+    picker.classList.toggle('hidden');
+  });
+
+  // Закрываем пикер при клике вне него
+  document.addEventListener('click', (e) => {
+    if (!picker.contains(e.target) && e.target !== preview) {
+      picker.classList.add('hidden');
+    }
+  });
+}
+
+// ── Клиенты ───────────────────────────────────────────────────────────────────
+
+async function loadClients() {
+  try {
+    const rows = await api('GET', '/api/listings/clients');
+    const grid = document.getElementById('clients-grid');
+
+    if (!rows.length) {
+      grid.innerHTML = `
+        <div class="empty-state glass-panel" style="grid-column:1/-1;padding:40px;">
+          <div class="empty-icon">👥</div>
+          Нет клиентов. Добавьте первого клиента выше.
+        </div>`;
+      return;
+    }
+
+    grid.innerHTML = rows.map(r => {
+      const tags = [];
+      if (r.budget_min || r.budget_max) {
+        const from = r.budget_min ? fmtPrice(r.budget_min) : '';
+        const to   = r.budget_max ? fmtPrice(r.budget_max) : '';
+        tags.push(`💰 ${from}${from && to ? ' – ' : ''}${to}`);
+      }
+      if (r.area_min || r.area_max) {
+        const from = r.area_min ? r.area_min + ' м²' : '';
+        const to   = r.area_max ? r.area_max + ' м²' : '';
+        tags.push(`📐 ${from}${from && to ? ' – ' : ''}${to}`);
+      }
+      if (r.rooms) tags.push(`🚪 ${r.rooms} комн.`);
+      if (r.district) tags.push(`📍 ${r.district}`);
+
+      const hasMap = !!r.area_polygon;
+      const hasMsg = !!r.message_template;
+
+      return `
+        <div class="client-card" onclick="openClientModal(${r.id})">
+          <div class="client-card-header">
+            <div class="client-card-avatar">${r.emoji || '🏠'}</div>
+            <div>
+              <div class="client-card-name">${r.name}</div>
+              <div class="client-card-type">${r.deal_type === 'rent' ? 'Аренда' : 'Покупка'}${hasMap ? ' · 🗺️' : ''}${hasMsg ? ' · 💬' : ''}</div>
+            </div>
+          </div>
+          ${tags.length ? `<div class="client-card-params">${tags.map(t => `<span class="param-tag">${t}</span>`).join('')}</div>` : ''}
+          <div class="client-card-actions">
+            <span style="font-size:11px;color:var(--text-muted);flex:1;">Нажмите для подробностей</span>
+            <button class="btn btn-danger btn-sm"
+                    onclick="event.stopPropagation();deleteClient(${r.id})"
+                    style="padding:4px 10px;font-size:11px;">
+              Удалить
+            </button>
+          </div>
+        </div>`;
+    }).join('');
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+document.getElementById('btn-add-client').addEventListener('click', async () => {
+  const body = {
+    name:             document.getElementById('c-name').value.trim(),
+    district:         document.getElementById('c-district').value.trim() || null,
+    budget_min:       parseInt(document.getElementById('c-budget-min').value) || null,
+    budget_max:       parseInt(document.getElementById('c-budget-max').value) || null,
+    area_min:         parseInt(document.getElementById('c-area-min').value)   || null,
+    area_max:         parseInt(document.getElementById('c-area-max').value)   || null,
+    rooms:            document.getElementById('c-rooms').value     || null,
+    deal_type:        document.getElementById('c-deal-type').value,
+    message_template: document.getElementById('c-message-template').value.trim() || null,
+    emoji:            document.getElementById('c-emoji').value || '🏠',
+  };
+  if (!body.name) { showToast('Введите имя клиента', 'error'); return; }
+  try {
+    await api('POST', '/api/listings/clients', body);
+    showToast('Клиент добавлен ✓');
+    loadClients();
+    loadStats();
+    // Сброс формы
+    ['c-name','c-district','c-budget-min','c-budget-max','c-area-min','c-area-max','c-message-template'].forEach(id => {
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('c-rooms').value = '';
+    _selectedEmoji = '🏠';
+    document.getElementById('emoji-preview').textContent = '🏠';
+    document.getElementById('c-emoji').value = '🏠';
+    document.querySelectorAll('.emoji-option').forEach(o =>
+      o.classList.toggle('selected', o.dataset.emoji === '🏠')
+    );
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+});
+
+async function deleteClient(id) {
+  try {
+    await api('DELETE', `/api/listings/clients/${id}`);
+    showToast('Клиент удалён');
+    loadClients();
+    loadStats();
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+// ── Модал: детали клиента ─────────────────────────────────────────────────────
+
+let _modalMap = null;
+
+async function openClientModal(clientId) {
+  try {
+    const clients = await api('GET', '/api/listings/clients');
+    const r = clients.find(c => c.id === clientId);
+    if (!r) return;
+
+    document.getElementById('modal-avatar').textContent = r.emoji || '🏠';
+    document.getElementById('modal-name').textContent = r.name;
+    document.getElementById('modal-deal-type').textContent =
+      r.deal_type === 'rent' ? 'Аренда' : 'Покупка';
+
+    // Параметры
+    const params = [];
+    if (r.budget_min) params.push(['Бюджет от', fmtPrice(r.budget_min)]);
+    if (r.budget_max) params.push(['Бюджет до', fmtPrice(r.budget_max)]);
+    if (r.area_min)   params.push(['Площадь от', r.area_min + ' м²']);
+    if (r.area_max)   params.push(['Площадь до', r.area_max + ' м²']);
+    if (r.rooms)      params.push(['Комнат', r.rooms]);
+    if (r.district)   params.push(['Район', r.district]);
+
+    document.getElementById('modal-params').innerHTML = params.length
+      ? params.map(([l, v]) => `
+          <div class="modal-param">
+            <div class="param-label">${l}</div>
+            <div class="param-value">${v}</div>
+          </div>`).join('')
+      : '<div style="color:var(--text-muted);font-size:13px;grid-column:1/-1;">Параметры не заданы</div>';
+
+    // Шаблон сообщения
+    const templateSection = document.getElementById('modal-template-section');
+    if (r.message_template) {
+      document.getElementById('modal-template').textContent = r.message_template;
+      document.getElementById('modal-template').className = 'modal-message-box';
+      templateSection.classList.remove('hidden');
+    } else {
+      templateSection.classList.add('hidden');
+    }
+
+    // Карта
+    const mapSection = document.getElementById('modal-map-section');
+    if (r.area_polygon) {
+      mapSection.classList.remove('hidden');
+      document.getElementById('client-modal-overlay').classList.remove('hidden');
+      // Инициализируем мини-карту после открытия модала
+      setTimeout(() => initModalMap(r.area_polygon), 100);
+    } else {
+      mapSection.classList.add('hidden');
+      document.getElementById('client-modal-overlay').classList.remove('hidden');
+    }
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
+function initModalMap(polygonStr) {
+  const container = document.getElementById('modal-map');
+
+  // Уничтожаем предыдущую карту
+  if (_modalMap) {
+    _modalMap.remove();
+    _modalMap = null;
+  }
+
+  _modalMap = L.map(container, { zoomControl: true, scrollWheelZoom: false })
+    .setView([51.1694, 71.4491], 11);
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© OSM',
+    maxZoom: 19,
+  }).addTo(_modalMap);
+
+  const parts = polygonStr.split(',').map(Number);
+  if (parts.length >= 4) {
+    const points = [];
+    for (let i = 0; i < parts.length - 1; i += 2) {
+      points.push([parts[i], parts[i + 1]]);
+    }
+    const poly = L.polygon(points, {
+      color: '#4f8ef7',
+      fillColor: '#4f8ef7',
+      fillOpacity: 0.15,
+      weight: 2,
+    }).addTo(_modalMap);
+    _modalMap.fitBounds(poly.getBounds(), { padding: [16, 16] });
+  }
+}
+
+document.getElementById('btn-modal-close').addEventListener('click', () => {
+  document.getElementById('client-modal-overlay').classList.add('hidden');
+});
+
+document.getElementById('client-modal-overlay').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('client-modal-overlay')) {
+    document.getElementById('client-modal-overlay').classList.add('hidden');
+  }
+});
+
+// ── Объявления ────────────────────────────────────────────────────────────────
+
+async function loadListings() {
+  try {
+    const rows = await api('GET', '/api/listings/');
+    const grid = document.getElementById('listings-grid');
+
+    grid.querySelectorAll('.listing-row:not(.header)').forEach(el => el.remove());
+    const emptyEl = document.getElementById('listings-empty');
+    if (emptyEl) emptyEl.remove();
+
+    if (!rows.length) {
+      const empty = document.createElement('div');
+      empty.id = 'listings-empty';
+      empty.className = 'empty-state';
+      empty.innerHTML = '<div class="empty-icon">🏡</div>Нет объявлений';
+      grid.appendChild(empty);
+      return;
+    }
+
+    rows.forEach(r => grid.appendChild(renderListingRow(r)));
+  } catch (e) {
+    showToast(e.message, 'error');
+  }
+}
+
 // ── Сообщения ─────────────────────────────────────────────────────────────────
 
 async function loadMessages() {
@@ -318,12 +579,14 @@ async function loadMessages() {
       return;
     }
     tbody.innerHTML = rows.map(r => {
-      const time = new Date(r.sent_at + 'Z').toLocaleString('ru-RU', { day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit' });
+      const time = new Date(r.sent_at + 'Z').toLocaleString('ru-RU', {
+        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+      });
       return `<tr>
-        <td style="color:var(--text-muted);white-space:nowrap;">${time}</td>
+        <td style="color:var(--text-muted);white-space:nowrap;font-size:12px;">${time}</td>
         <td>${r.client_name || '—'}</td>
-        <td><a href="${r.url || '#'}" target="_blank" style="color:var(--accent);text-decoration:none;">${r.title || r.krisha_id || '—'}</a></td>
-        <td style="max-width:300px;color:var(--text-muted);">${r.text || ''}</td>
+        <td><a href="${r.url || '#'}" target="_blank" style="color:var(--accent);text-decoration:none;font-size:13px;">${r.title || r.krisha_id || '—'}</a></td>
+        <td style="max-width:280px;color:var(--text-muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${r.text || ''}</td>
         <td><span class="badge badge-success">Отправлено</span></td>
       </tr>`;
     }).join('');
@@ -371,7 +634,7 @@ document.getElementById('btn-install-playwright').addEventListener('click', asyn
   const btn = document.getElementById('btn-install-playwright');
   const result = document.getElementById('browser-open-result');
   btn.disabled = true;
-  btn.textContent = '⏳ Устанавливаем браузер... (может занять 1-2 минуты)';
+  btn.textContent = '⏳ Устанавливаем... (1-2 минуты)';
   result.textContent = '';
   try {
     const data = await api('POST', '/api/agent/install-playwright');
@@ -395,7 +658,7 @@ document.getElementById('btn-open-browser').addEventListener('click', async () =
   const btn = document.getElementById('btn-open-browser');
   const result = document.getElementById('browser-open-result');
   btn.disabled = true;
-  btn.textContent = '⏳ Открываем браузер...';
+  btn.textContent = '⏳ Открываем...';
   result.textContent = '';
   try {
     const data = await api('POST', '/api/agent/open-browser');
@@ -419,27 +682,26 @@ document.getElementById('btn-open-browser').addEventListener('click', async () =
 
 let _map = null;
 let _drawingMode = false;
-let _polygonPoints = [];   // [[lat, lon], ...]
-let _polyline = null;      // линия в процессе рисования
-let _polygon = null;       // готовый полигон
+let _polygonPoints = [];
+let _polyline = null;
+let _polygon = null;
 
 async function initMap() {
-  // Заполняем список клиентов
   try {
     const clients = await api('GET', '/api/listings/clients');
     const sel = document.getElementById('map-client-select');
     sel.innerHTML = '<option value="">— выберите клиента —</option>' +
-      clients.map(c => `<option value="${c.id}" data-polygon="${c.area_polygon || ''}">${c.name}</option>`).join('');
+      clients.map(c =>
+        `<option value="${c.id}" data-polygon="${c.area_polygon || ''}">${c.emoji || '🏠'} ${c.name}</option>`
+      ).join('');
 
-    // Если у выбранного клиента уже есть полигон — показываем его
-    sel.addEventListener('change', () => {
+    sel.onchange = () => {
       const opt = sel.options[sel.selectedIndex];
       const poly = opt.dataset.polygon;
       if (poly) _loadExistingPolygon(poly);
-    });
+    };
   } catch (_) {}
 
-  // Инициализируем карту один раз
   if (_map) {
     _map.invalidateSize();
     return;
@@ -470,27 +732,20 @@ function _redrawPolyline() {
 
 function _finishPolygon(e) {
   if (!_drawingMode || _polygonPoints.length < 3) return;
-
-  // Останавливаем рисование
   _drawingMode = false;
   document.getElementById('map-container').classList.remove('map-draw-active');
   document.getElementById('map-hint').style.display = 'none';
-
   if (_polyline) { _map.removeLayer(_polyline); _polyline = null; }
   if (_polygon)  { _map.removeLayer(_polygon);  _polygon = null; }
-
   _polygon = L.polygon(_polygonPoints, {
     color: '#4f8ef7',
     fillColor: '#4f8ef7',
     fillOpacity: 0.15,
     weight: 2,
   }).addTo(_map);
-
   _map.fitBounds(_polygon.getBounds(), { padding: [20, 20] });
-
   const coordStr = _polygonPoints.map(p => `${p[0].toFixed(6)},${p[1].toFixed(6)}`).join(',');
-  document.getElementById('map-polygon-info').textContent =
-    `✓ Область обведена: ${_polygonPoints.length} точек`;
+  document.getElementById('map-polygon-info').textContent = `✓ Область: ${_polygonPoints.length} точек`;
   document.getElementById('btn-save-polygon').disabled = false;
   document.getElementById('btn-save-polygon').dataset.coords = coordStr;
 }
@@ -499,17 +754,33 @@ function _loadExistingPolygon(coordStr) {
   if (!_map || !coordStr) return;
   const parts = coordStr.split(',').map(Number);
   if (parts.length < 4) return;
-  _polygonPoints = [];
+
+  if (_polyline) { _map.removeLayer(_polyline); _polyline = null; }
+  if (_polygon)  { _map.removeLayer(_polygon);  _polygon = null; }
+
+  const points = [];
   for (let i = 0; i < parts.length - 1; i += 2) {
-    _polygonPoints.push([parts[i], parts[i + 1]]);
+    points.push([parts[i], parts[i + 1]]);
   }
-  _finishPolygon({});
+  _polygonPoints = points;
+
+  _polygon = L.polygon(points, {
+    color: '#4f8ef7',
+    fillColor: '#4f8ef7',
+    fillOpacity: 0.15,
+    weight: 2,
+  }).addTo(_map);
+  _map.fitBounds(_polygon.getBounds(), { padding: [20, 20] });
+
+  const coordStr2 = points.map(p => `${p[0].toFixed(6)},${p[1].toFixed(6)}`).join(',');
+  document.getElementById('btn-save-polygon').disabled = false;
+  document.getElementById('btn-save-polygon').dataset.coords = coordStr2;
   document.getElementById('map-polygon-info').textContent =
-    `↩ Загружена сохранённая область (${_polygonPoints.length} точек)`;
+    `↩ Загружена сохранённая область (${points.length} точек)`;
 }
 
 document.getElementById('btn-draw-polygon').addEventListener('click', () => {
-  if (!_map) { showToast('Сначала откройте карту', 'error'); return; }
+  if (!_map) { showToast('Перейдите на вкладку Карта', 'error'); return; }
   _drawingMode = true;
   _polygonPoints = [];
   if (_polyline) { _map.removeLayer(_polyline); _polyline = null; }
@@ -542,8 +813,7 @@ document.getElementById('btn-save-polygon').addEventListener('click', async () =
   if (!coords) { showToast('Сначала обведите область', 'error'); return; }
   try {
     await api('PATCH', `/api/listings/clients/${clientId}/polygon`, { area_polygon: coords });
-    showToast('Область сохранена для клиента ✓');
-    // Обновляем data-polygon в select
+    showToast('Область сохранена ✓');
     const opt = document.querySelector(`#map-client-select option[value="${clientId}"]`);
     if (opt) opt.dataset.polygon = coords;
   } catch (e) {

@@ -70,6 +70,7 @@ async def init_db():
         migrations = [
             "ALTER TABLE clients ADD COLUMN area_polygon TEXT",
             "ALTER TABLE clients ADD COLUMN message_template TEXT",
+            "ALTER TABLE clients ADD COLUMN emoji TEXT DEFAULT '🏠'",
         ]
         for sql in migrations:
             try:
