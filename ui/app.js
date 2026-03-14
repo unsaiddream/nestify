@@ -365,6 +365,30 @@ document.getElementById('btn-update-token').addEventListener('click', async () =
   }
 });
 
+document.getElementById('btn-install-playwright').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-install-playwright');
+  const result = document.getElementById('browser-open-result');
+  btn.disabled = true;
+  btn.textContent = '⏳ Устанавливаем браузер... (может занять 1-2 минуты)';
+  result.textContent = '';
+  try {
+    const data = await api('POST', '/api/agent/install-playwright');
+    if (data.status === 'ok') {
+      result.style.color = 'var(--success)';
+      result.textContent = '✓ ' + data.message + '\nТеперь нажмите "Открыть браузер".';
+    } else {
+      result.style.color = 'var(--danger)';
+      result.textContent = '✗ ' + data.message + (data.output ? '\n\n' + data.output.slice(-300) : '');
+    }
+  } catch (e) {
+    result.style.color = 'var(--danger)';
+    result.textContent = '✗ ' + e.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '⬇️ Установить браузер (playwright install chromium)';
+  }
+});
+
 document.getElementById('btn-open-browser').addEventListener('click', async () => {
   const btn = document.getElementById('btn-open-browser');
   const result = document.getElementById('browser-open-result');
