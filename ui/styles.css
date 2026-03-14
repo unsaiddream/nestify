@@ -36,15 +36,17 @@ html, body {
   height: 100%;
 }
 
-/* Тёмная тема: единый градиент на html покрывает весь вьюпорт,
-   включая сайдбар — никаких стыков */
+/* Тёмная тема: background-attachment:fixed — градиент фиксирован к вьюпорту,
+   не зависит от высоты документа и положения скролла → никаких стыков */
 html {
-  background: #080b12;
+  background-color: #080b12;
   background-image:
     radial-gradient(ellipse 130% 100% at -5% -5%,  rgba(40,80,200,0.45) 0%, transparent 60%),
     radial-gradient(ellipse 110% 90%  at 105% 105%, rgba(20,140,110,0.35) 0%, transparent 60%),
     radial-gradient(ellipse 80%  70%  at 50% 50%,  rgba(60,50,130,0.2)  0%, transparent 60%);
-  min-height: 100vh;
+  background-attachment: fixed;
+  background-size: 100% 100%;
+  min-height: 100%;
 }
 
 body {
@@ -965,6 +967,8 @@ html[data-theme="light"] {
       rgba(255,180,120,0.4) 0%, transparent 65%),
     radial-gradient(ellipse 100% 85% at -10% 110%,
       rgba(70,210,155,0.38) 0%, transparent 65%);
+  background-attachment: fixed;
+  background-size: 100% 100%;
 }
 
 [data-theme="light"] body {
@@ -1314,10 +1318,20 @@ html[data-theme="light"] {
   align-items: center;
   justify-content: center;
   color: var(--text-muted);
-  background: rgba(255,255,255,0.03);
+  background: linear-gradient(90deg,
+    rgba(255,255,255,0.03) 25%,
+    rgba(255,255,255,0.07) 50%,
+    rgba(255,255,255,0.03) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s infinite;
 }
 
-.ltt-image-placeholder.hidden { display: none; }
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.ltt-image-placeholder.hidden { display: none; animation: none; }
 
 /* Body */
 .ltt-body {
