@@ -125,16 +125,23 @@ async def agent_status():
 
 
 @router.get("/debug-selectors")
-async def debug_selectors():
+async def debug_selectors(map: bool = False):
     """Открывает страницу поиска Krisha.kz и возвращает найденные селекторы — для диагностики."""
     try:
         from agent.browser import new_page
         page = await new_page()
         try:
-            url = "https://krisha.kz/arenda/kvartiry/almaty/"
-            await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
+            url = (
+                "https://krisha.kz/map/arenda/kvartiry/?zoom=13&lat=51.09103&lon=71.41910"
+                "&areas=p51.098456,71.406412,51.082552,71.400576,51.077214,71.436024,51.090909,71.458683,51.098563,71.406498,51.098456,71.406412"
+                if map else "https://krisha.kz/arenda/kvartiry/almaty/"
+            )
             import asyncio
-            await asyncio.sleep(3)
+            try:
+                await page.goto(url, wait_until="networkidle", timeout=40_000)
+            except Exception:
+                pass
+            await asyncio.sleep(4)
 
             # Проверяем разные возможные селекторы карточек
             candidates = [

@@ -195,17 +195,23 @@ async def search_listings(client: dict, max_pages: int = 3) -> list[RawListing]:
 
 
 async def _search_map(url: str) -> list[RawListing]:
-    """Поиск через map URL Krisha — скрапим список в правом сайдбаре."""
+    """Поиск через map URL Krisha — скрапим список в боковой панели."""
     results: list[RawListing] = []
     page = await new_page()
     try:
-        await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-        await asyncio.sleep(2.5)  # ждём загрузки карты и сайдбара
-
-        # Ждём карточки в сайдбаре
+        # networkidle ждёт пока карта и AJAX-запросы завершатся
         try:
-            await page.wait_for_selector(".a-card", timeout=10_000)
+            await page.goto(url, wait_until="networkidle", timeout=45_000)
         except Exception:
+            # Если networkidle не дождались — пробуем продолжить с тем что есть
+            pass
+        await asyncio.sleep(3)  # дополнительное ожидание рендера боковой панели
+
+        # Ждём карточки (список слева от карты)
+        try:
+            await page.wait_for_selector(".a-card", timeout=12_000)
+        except Exception:
+            # Если карточек нет — возможно нет результатов в этом районе/фильтрах
             return results
 
         cards = await page.query_selector_all(".a-card")
@@ -216,6 +222,20 @@ async def _search_map(url: str) -> list[RawListing]:
                     results.append(listing)
             except Exception:
                 continue
+
+        # Если нашли мало карточек — прокручиваем список вниз для подгрузки
+        if 0 < len(results) < 5:
+            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            await asyncio.sleep(2)
+            cards = await page.query_selector_all(".a-card")
+            results.clear()
+            for card in cards:
+                try:
+                    listing = await _parse_card(card)
+                    if listing:
+                        results.append(listing)
+                except Exception:
+                    continue
 
     finally:
         await page.close()
