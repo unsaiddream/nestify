@@ -30,7 +30,7 @@ function showToast(msg, type = 'success') {
 }
 
 function showScreen(id) {
-  ['screen-token', 'screen-login', 'screen-dashboard'].forEach(s => {
+  ['screen-token', 'screen-dashboard'].forEach(s => {
     document.getElementById(s).classList.toggle('hidden', s !== id);
   });
 }
@@ -49,22 +49,17 @@ function fmt(n) {
   return Number(n).toLocaleString('ru-RU');
 }
 
-// ── Онбординг ────────────────────────────────────────────────────────────────
+// ── Онбординг: только токен ───────────────────────────────────────────────────
 
 async function checkOnboarding() {
   try {
     const { has_token } = await api('GET', '/api/auth/gemini-token/status');
-    if (!has_token) {
+    if (has_token) {
+      showScreen('screen-dashboard');
+      initDashboard();
+    } else {
       showScreen('screen-token');
-      return;
     }
-    const { logged_in } = await api('GET', '/api/auth/krisha-status');
-    if (!logged_in) {
-      showScreen('screen-login');
-      return;
-    }
-    showScreen('screen-dashboard');
-    initDashboard();
   } catch (e) {
     showScreen('screen-token');
   }
@@ -76,19 +71,6 @@ document.getElementById('btn-save-token').addEventListener('click', async () => 
   try {
     await api('POST', '/api/auth/gemini-token', { token });
     showToast('Токен сохранён ✓');
-    showScreen('screen-login');
-  } catch (e) {
-    showToast(e.message, 'error');
-  }
-});
-
-document.getElementById('btn-krisha-login').addEventListener('click', async () => {
-  const phone    = document.getElementById('krisha-phone').value.trim();
-  const password = document.getElementById('krisha-password').value;
-  if (!phone || !password) { showToast('Заполните все поля', 'error'); return; }
-  try {
-    await api('POST', '/api/auth/krisha-login', { phone, password });
-    showToast('Подключено ✓');
     showScreen('screen-dashboard');
     initDashboard();
   } catch (e) {
@@ -201,7 +183,6 @@ document.getElementById('btn-add-client').addEventListener('click', async () => 
     showToast('Клиент добавлен ✓');
     loadClients();
     loadStats();
-    // Сбрасываем форму
     ['c-name','c-district','c-budget-min','c-budget-max','c-area-min','c-area-max'].forEach(id => {
       document.getElementById(id).value = '';
     });
