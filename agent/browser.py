@@ -5,24 +5,36 @@
 """
 
 import asyncio
+import re
+from dataclasses import dataclass
 from pathlib import Path
+from typing import AsyncGenerator
 
 from playwright.async_api import async_playwright, BrowserContext, Page
 
-# Профиль браузера хранится рядом с БД — сессия сохраняется между запусками
 PROFILE_DIR = Path(__file__).parent.parent / "browser_profile"
-KRISHA_BASE  = "https://krisha.kz"
+KRISHA_BASE = "https://krisha.kz"
 
-
-_playwright  = None
+_playwright = None
 _context: BrowserContext | None = None
+
+
+@dataclass
+class RawListing:
+    krisha_id: str
+    url: str
+    title: str
+    price: int | None
+    area: float | None
+    rooms: int | None
+    district: str | None
+    description: str | None
 
 
 async def get_context() -> BrowserContext:
     """
     Возвращает браузерный контекст с постоянным профилем.
-    При первом вызове запускает браузер и открывает Krisha.kz.
-    Пользователь логинится вручную один раз — сессия сохраняется.
+    При первом запуске открывает браузер — пользователь уже залогинен.
     """
     global _playwright, _context
     if _context is not None:
@@ -33,16 +45,15 @@ async def get_context() -> BrowserContext:
     _playwright = await async_playwright().start()
     _context = await _playwright.chromium.launch_persistent_context(
         user_data_dir=str(PROFILE_DIR),
-        headless=False,          # браузер видимый — пользователь видит что происходит
-        slow_mo=300,             # небольшая задержка между действиями — выглядит по-человечески
+        headless=False,
+        slow_mo=200,
         viewport={"width": 1280, "height": 800},
         locale="ru-RU",
-        args=["--disable-blink-features=AutomationControlled"],  # скрываем признаки автоматизации
+        args=["--disable-blink-features=AutomationControlled"],
     )
 
-    # Если сессии нет — открываем Krisha.kz чтобы пользователь залогинился
-    pages = _context.pages
-    if not pages:
+    # Открываем Krisha.kz если вкладок ещё нет
+    if not _context.pages:
         page = await _context.new_page()
         await page.goto(KRISHA_BASE)
 
@@ -50,13 +61,11 @@ async def get_context() -> BrowserContext:
 
 
 async def new_page() -> Page:
-    """Открывает новую вкладку в браузере агента."""
     ctx = await get_context()
     return await ctx.new_page()
 
 
 async def close_browser():
-    """Закрывает браузер и сохраняет сессию."""
     global _playwright, _context
     if _context:
         await _context.close()
@@ -66,15 +75,172 @@ async def close_browser():
         _playwright = None
 
 
-async def is_logged_in() -> bool:
-    """Проверяет, залогинен ли пользователь на Krisha.kz."""
+def _build_search_url(client: dict) -> str:
+    """Строит URL поиска на Krisha.kz по параметрам клиента."""
+    deal = "arenda" if client.get("deal_type") == "rent" else "prodazha"
+    base = f"{KRISHA_BASE}/{deal}/kvartiry/"
+
+    # Район → попытка определить город в URL
+    district: str = client.get("district") or ""
+    city_slug = _city_slug(district)
+    if city_slug:
+        base += f"{city_slug}/"
+
+    params = []
+
+    # Цена
+    if client.get("budget_min"):
+        params.append(f"das[price][from]={client['budget_min']}")
+    if client.get("budget_max"):
+        params.append(f"das[price][to]={client['budget_max']}")
+
+    # Площадь
+    if client.get("area_min"):
+        params.append(f"das[live.square][from]={client['area_min']}")
+    if client.get("area_max"):
+        params.append(f"das[live.square][to]={client['area_max']}")
+
+    # Комнаты
+    rooms_raw = client.get("rooms")
+    if rooms_raw and rooms_raw != "4+":
+        params.append(f"das[live.rooms]={rooms_raw}")
+    elif rooms_raw == "4+":
+        params.append("das[live.rooms][from]=4")
+
+    query = "&".join(params)
+    return f"{base}?{query}" if query else base
+
+
+def _city_slug(district: str) -> str:
+    """Простое определение города по введённому тексту района."""
+    d = district.lower()
+    if "алмат" in d or "almaty" in d:
+        return "almaty"
+    if "астан" in d or "astana" in d or "нур-султан" in d:
+        return "astana"
+    if "шымкент" in d or "shymkent" in d:
+        return "shymkent"
+    if "актобе" in d or "aktobe" in d:
+        return "aktobe"
+    if "атырау" in d or "atyrau" in d:
+        return "atyrau"
+    if "павлодар" in d or "pavlodar" in d:
+        return "pavlodar"
+    return ""
+
+
+def _parse_price(text: str) -> int | None:
+    """Извлекает числовую цену из строки вида '45 000 000 ₸'."""
+    digits = re.sub(r"\D", "", text)
+    return int(digits) if digits else None
+
+
+def _parse_area(text: str) -> float | None:
+    """Извлекает площадь из строки вида '65 м²'."""
+    m = re.search(r"(\d+[\.,]?\d*)", text)
+    if m:
+        return float(m.group(1).replace(",", "."))
+    return None
+
+
+def _parse_rooms(text: str) -> int | None:
+    """Извлекает количество комнат из строки."""
+    m = re.search(r"(\d+)-комн", text)
+    if m:
+        return int(m.group(1))
+    return None
+
+
+async def search_listings(client: dict, max_pages: int = 3) -> list[RawListing]:
+    """
+    Ищет объявления на Krisha.kz по параметрам клиента.
+    Возвращает список RawListing с первых max_pages страниц.
+    """
+    url = _build_search_url(client)
+    results: list[RawListing] = []
+
+    page = await new_page()
     try:
-        ctx = await get_context()
-        page = await ctx.new_page()
-        await page.goto(f"{KRISHA_BASE}/user/", wait_until="domcontentloaded", timeout=10_000)
-        # Если редиректит на /login — значит не залогинен
-        logged_in = "/login" not in page.url
+        for page_num in range(1, max_pages + 1):
+            page_url = url if page_num == 1 else f"{url}&page={page_num}"
+            await page.goto(page_url, wait_until="domcontentloaded", timeout=30_000)
+
+            # Небольшая пауза — ведём себя по-человечески
+            await asyncio.sleep(1.5)
+
+            # Ждём появления карточек
+            try:
+                await page.wait_for_selector(".a-card", timeout=8_000)
+            except Exception:
+                break  # нет карточек — страниц больше нет
+
+            cards = await page.query_selector_all(".a-card")
+            if not cards:
+                break
+
+            for card in cards:
+                try:
+                    listing = await _parse_card(card)
+                    if listing:
+                        results.append(listing)
+                except Exception:
+                    continue
+
+            # Если на странице меньше 20 карточек — это последняя страница
+            if len(cards) < 20:
+                break
+
+            await asyncio.sleep(2)  # задержка между страницами
+
+    finally:
         await page.close()
-        return logged_in
-    except Exception:
-        return False
+
+    return results
+
+
+async def _parse_card(card) -> RawListing | None:
+    """Извлекает данные из одной карточки объявления."""
+    # Ссылка и ID
+    link_el = await card.query_selector("a.a-card__title, .a-card__header a")
+    if not link_el:
+        return None
+
+    href = await link_el.get_attribute("href") or ""
+    if not href.startswith("http"):
+        href = KRISHA_BASE + href
+
+    # ID из URL (например /a/show/12345678)
+    id_match = re.search(r"/(\d{6,})", href)
+    krisha_id = id_match.group(1) if id_match else href
+
+    title = (await link_el.inner_text()).strip()
+
+    # Цена
+    price_el = await card.query_selector(".a-card__price")
+    price_text = (await price_el.inner_text()).strip() if price_el else ""
+    price = _parse_price(price_text)
+
+    # Параметры: комнаты, площадь
+    params_el = await card.query_selector(".a-card__header-left, .offer__info-title")
+    params_text = (await params_el.inner_text()).strip() if params_el else ""
+    rooms = _parse_rooms(params_text)
+    area  = _parse_area(params_text)
+
+    # Район / адрес
+    district_el = await card.query_selector(".a-card__addr, .offer__location")
+    district_text = (await district_el.inner_text()).strip() if district_el else None
+
+    # Описание (краткое)
+    desc_el = await card.query_selector(".a-card__description")
+    desc_text = (await desc_el.inner_text()).strip() if desc_el else None
+
+    return RawListing(
+        krisha_id=krisha_id,
+        url=href,
+        title=title,
+        price=price,
+        area=area,
+        rooms=rooms,
+        district=district_text,
+        description=desc_text,
+    )

@@ -1,0 +1,131 @@
+"""
+Модуль работы с Gemini API.
+Анализирует объявления с Krisha.kz и принимает решение — стоит ли писать продавцу.
+"""
+
+import json
+import re
+from dataclasses import dataclass
+
+import google.generativeai as genai
+
+from database.db import get_setting
+
+
+@dataclass
+class ListingAnalysis:
+    score: int          # оценка 1–10
+    approved: bool      # стоит ли писать продавцу
+    comment: str        # краткий комментарий агента
+    message: str        # готовое сообщение продавцу (если approved)
+
+
+async def _get_model() -> genai.GenerativeModel:
+    """Инициализирует Gemini с токеном из БД."""
+    token = await get_setting("gemini_token")
+    if not token:
+        raise RuntimeError("Gemini API токен не настроен")
+    genai.configure(api_key=token)
+    return genai.GenerativeModel("gemini-1.5-flash")
+
+
+async def analyze_listing(listing: dict, client: dict) -> ListingAnalysis:
+    """
+    Анализирует одно объявление с точки зрения клиента.
+    Возвращает оценку, решение и готовое сообщение продавцу.
+    """
+    model = await _get_model()
+
+    # Формируем описание клиента для промпта
+    client_desc = _format_client(client)
+    listing_desc = _format_listing(listing)
+
+    prompt = f"""Ты — ИИ-помощник риелтора. Проанализируй объявление о продаже/аренде недвижимости.
+
+ПАРАМЕТРЫ КЛИЕНТА:
+{client_desc}
+
+ОБЪЯВЛЕНИЕ:
+{listing_desc}
+
+Оцени объявление и верни JSON в следующем формате (без markdown, только JSON):
+{{
+  "score": <число от 1 до 10, насколько объявление подходит клиенту>,
+  "approved": <true если score >= 6 и объявление стоит рассмотреть, иначе false>,
+  "comment": "<1-2 предложения: почему подходит или не подходит>",
+  "message": "<если approved=true: короткое вежливое сообщение продавцу от имени риелтора на русском, 2-3 предложения; если approved=false: пустая строка>"
+}}
+
+Критерии оценки:
+- Цена попадает в бюджет клиента
+- Площадь и количество комнат соответствуют
+- Район/локация подходит
+- Описание не вызывает подозрений (нет признаков мошенничества, завышенной цены)
+- Сообщение продавцу должно быть естественным, не шаблонным"""
+
+    try:
+        response = await model.generate_content_async(prompt)
+        return _parse_response(response.text)
+    except Exception as e:
+        # При ошибке возвращаем нейтральный результат
+        return ListingAnalysis(
+            score=0,
+            approved=False,
+            comment=f"Ошибка анализа: {e}",
+            message="",
+        )
+
+
+def _format_client(c: dict) -> str:
+    lines = [f"Имя: {c.get('name', '—')}"]
+    if c.get("district"):
+        lines.append(f"Район/город: {c['district']}")
+    if c.get("budget_min") or c.get("budget_max"):
+        b_min = f"{c['budget_min']:,}" if c.get("budget_min") else "—"
+        b_max = f"{c['budget_max']:,}" if c.get("budget_max") else "—"
+        lines.append(f"Бюджет: {b_min} – {b_max} ₸")
+    if c.get("area_min") or c.get("area_max"):
+        lines.append(f"Площадь: {c.get('area_min','—')} – {c.get('area_max','—')} м²")
+    if c.get("rooms"):
+        lines.append(f"Комнат: {c['rooms']}")
+    lines.append(f"Тип сделки: {'Аренда' if c.get('deal_type') == 'rent' else 'Покупка'}")
+    return "\n".join(lines)
+
+
+def _format_listing(l: dict) -> str:
+    lines = [f"Заголовок: {l.get('title', '—')}"]
+    if l.get("price"):
+        lines.append(f"Цена: {l['price']:,} ₸")
+    if l.get("area"):
+        lines.append(f"Площадь: {l['area']} м²")
+    if l.get("rooms"):
+        lines.append(f"Комнат: {l['rooms']}")
+    if l.get("district"):
+        lines.append(f"Адрес/район: {l['district']}")
+    if l.get("description"):
+        lines.append(f"Описание: {l['description'][:400]}")
+    lines.append(f"Ссылка: {l.get('url', '—')}")
+    return "\n".join(lines)
+
+
+def _parse_response(text: str) -> ListingAnalysis:
+    """Парсит JSON-ответ Gemini."""
+    # Убираем возможные markdown-обёртки
+    clean = re.sub(r"```(?:json)?|```", "", text).strip()
+
+    try:
+        data = json.loads(clean)
+        return ListingAnalysis(
+            score=int(data.get("score", 0)),
+            approved=bool(data.get("approved", False)),
+            comment=str(data.get("comment", "")),
+            message=str(data.get("message", "")),
+        )
+    except (json.JSONDecodeError, ValueError):
+        # Fallback если Gemini вернул не чистый JSON
+        return ListingAnalysis(
+            score=0,
+            approved=False,
+            comment="Не удалось разобрать ответ Gemini",
+            message="",
+        )
