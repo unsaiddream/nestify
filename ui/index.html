@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Nestify</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════════
+     Экран 1: Ввод Gemini API токена
+════════════════════════════════════════════════ -->
+<div id="screen-token" class="screen">
+  <div class="card">
+    <div class="logo">
+      <div class="logo-icon">🏠</div>
+      <span class="logo-text">Nestify</span>
+    </div>
+
+    <div class="steps">
+      <div class="step current"></div>
+      <div class="step"></div>
+    </div>
+
+    <h1>Добро пожаловать</h1>
+    <p class="subtitle">Введите ваш Gemini API токен для начала работы. Токен хранится только локально.</p>
+
+    <div class="field">
+      <label>Gemini API Token</label>
+      <input type="password" id="gemini-token-input" placeholder="AIza..." autocomplete="off" />
+    </div>
+
+    <button class="btn btn-primary mt-1" id="btn-save-token">Продолжить →</button>
+
+    <p class="mt-2" style="font-size:12px;color:var(--text-muted);text-align:center;">
+      Получить токен можно на
+      <a href="https://aistudio.google.com/app/apikey" target="_blank"
+         style="color:var(--accent);text-decoration:none;">Google AI Studio</a>
+    </p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     Экран 2: Логин в Krisha.kz
+════════════════════════════════════════════════ -->
+<div id="screen-login" class="screen hidden">
+  <div class="card">
+    <div class="logo">
+      <div class="logo-icon">🏠</div>
+      <span class="logo-text">Nestify</span>
+    </div>
+
+    <div class="steps">
+      <div class="step done"></div>
+      <div class="step current"></div>
+    </div>
+
+    <h1>Логин в Krisha.kz</h1>
+    <p class="subtitle">Введите данные вашего аккаунта риелтора на Krisha.kz.</p>
+
+    <div class="field">
+      <label>Телефон</label>
+      <input type="tel" id="krisha-phone" placeholder="+7 777 000 00 00" />
+    </div>
+
+    <div class="field">
+      <label>Пароль</label>
+      <input type="password" id="krisha-password" placeholder="••••••••" />
+    </div>
+
+    <button class="btn btn-primary mt-1" id="btn-krisha-login">Войти и открыть дашборд →</button>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
+     Экран 3: Дашборд
+════════════════════════════════════════════════ -->
+<div id="screen-dashboard" class="screen hidden">
+  <div class="dashboard-layout">
+
+    <!-- Сайдбар -->
+    <aside class="sidebar">
+      <div class="logo">
+        <div class="logo-icon">🏠</div>
+        <span class="logo-text">Nestify</span>
+      </div>
+
+      <button class="nav-item active" data-page="overview">
+        <span>📊</span> Обзор
+      </button>
+      <button class="nav-item" data-page="clients">
+        <span>👥</span> Клиенты
+      </button>
+      <button class="nav-item" data-page="listings">
+        <span>🏡</span> Объявления
+      </button>
+      <button class="nav-item" data-page="messages">
+        <span>💬</span> Сообщения
+      </button>
+
+      <div class="sidebar-bottom">
+        <div class="agent-status">
+          <div class="status-dot" id="agent-dot"></div>
+          <span id="agent-status-text">Агент остановлен</span>
+        </div>
+        <button class="btn btn-primary" id="btn-toggle-agent" style="margin:0 12px 8px;">
+          Запустить агента
+        </button>
+        <button class="nav-item" data-page="settings">
+          <span>⚙️</span> Настройки
+        </button>
+      </div>
+    </aside>
+
+    <!-- Основной контент -->
+    <main class="main-content">
+
+      <!-- Страница: Обзор -->
+      <div id="page-overview">
+        <h2 class="page-title">Обзор</h2>
+
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-label">Активные клиенты</div>
+            <div class="stat-value" id="stat-clients">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Найдено объявлений</div>
+            <div class="stat-value" id="stat-listings">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Отправлено сообщений</div>
+            <div class="stat-value" id="stat-messages">—</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Сегодня действий</div>
+            <div class="stat-value" id="stat-actions">—</div>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Объявление</th>
+                <th>Клиент</th>
+                <th>Цена</th>
+                <th>Площадь</th>
+                <th>Статус</th>
+              </tr>
+            </thead>
+            <tbody id="overview-listings-body">
+              <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:32px;">
+                Нет данных. Добавьте клиента и запустите агента.
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Страница: Клиенты -->
+      <div id="page-clients" class="hidden">
+        <h2 class="page-title">Клиенты</h2>
+
+        <div class="add-client-form">
+          <h3 style="margin-bottom:16px;font-size:15px;">Добавить клиента</h3>
+          <div class="form-grid">
+            <div class="field">
+              <label>Имя клиента</label>
+              <input type="text" id="c-name" placeholder="Ахмет Сейткали" />
+            </div>
+            <div class="field">
+              <label>Район</label>
+              <input type="text" id="c-district" placeholder="Алматы, Бостандыкский" />
+            </div>
+            <div class="field">
+              <label>Бюджет от (₸)</label>
+              <input type="number" id="c-budget-min" placeholder="30000000" />
+            </div>
+            <div class="field">
+              <label>Бюджет до (₸)</label>
+              <input type="number" id="c-budget-max" placeholder="50000000" />
+            </div>
+            <div class="field">
+              <label>Площадь от (м²)</label>
+              <input type="number" id="c-area-min" placeholder="50" />
+            </div>
+            <div class="field">
+              <label>Площадь до (м²)</label>
+              <input type="number" id="c-area-max" placeholder="100" />
+            </div>
+            <div class="field">
+              <label>Комнат</label>
+              <select id="c-rooms">
+                <option value="">Любое</option>
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4+">4+</option>
+              </select>
+            </div>
+            <div class="field">
+              <label>Тип сделки</label>
+              <select id="c-deal-type">
+                <option value="buy">Купить</option>
+                <option value="rent">Арендовать</option>
+              </select>
+            </div>
+          </div>
+          <button class="btn btn-primary mt-2" id="btn-add-client" style="width:auto;">
+            Добавить клиента
+          </button>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Клиент</th>
+                <th>Район</th>
+                <th>Бюджет</th>
+                <th>Тип</th>
+                <th>Действия</th>
+              </tr>
+            </thead>
+            <tbody id="clients-body">
+              <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:32px;">
+                Нет клиентов
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Страница: Объявления -->
+      <div id="page-listings" class="hidden">
+        <h2 class="page-title">Объявления</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Заголовок</th>
+                <th>Цена</th>
+                <th>Площадь</th>
+                <th>Район</th>
+                <th>AI оценка</th>
+                <th>Статус</th>
+              </tr>
+            </thead>
+            <tbody id="listings-body">
+              <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;">
+                Нет объявлений
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Страница: Сообщения -->
+      <div id="page-messages" class="hidden">
+        <h2 class="page-title">Отправленные сообщения</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Объявление</th>
+                <th>Текст сообщения</th>
+                <th>Отправлено</th>
+                <th>Статус</th>
+              </tr>
+            </thead>
+            <tbody id="messages-body">
+              <tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:32px;">
+                Нет сообщений
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Страница: Настройки -->
+      <div id="page-settings" class="hidden">
+        <h2 class="page-title">Настройки</h2>
+        <div class="card" style="max-width:440px;">
+          <div class="field">
+            <label>Gemini API Token</label>
+            <input type="password" id="settings-token" placeholder="AIza..." />
+          </div>
+          <button class="btn btn-primary" id="btn-update-token">Сохранить токен</button>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- Toast уведомление -->
+<div class="toast" id="toast"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
