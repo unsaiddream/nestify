@@ -286,86 +286,63 @@ async def _search_list(url: str, max_pages: int) -> list[RawListing]:
 
 async def send_message(listing_url: str, message_text: str) -> bool:
     """
-    Отправляет сообщение продавцу на странице объявления Krisha.kz.
+    Отправляет сообщение продавцу через страницу диалога Krisha.kz.
+    Напрямую переходим на /my/messages/?advertId=ID — минуем кнопку "Написать".
     Возвращает True если сообщение отправлено успешно.
     """
+    # Извлекаем ID объявления из URL
+    id_match = re.search(r"/(\d{6,})", listing_url)
+    if not id_match:
+        return False
+    listing_id = id_match.group(1)
+
     page = await new_page()
     try:
-        await page.goto(listing_url, wait_until="domcontentloaded", timeout=30_000)
-        await asyncio.sleep(2)
+        # Переходим прямо на страницу диалога с продавцом
+        messages_url = f"{KRISHA_BASE}/my/messages/?advertId={listing_id}"
+        await page.goto(messages_url, wait_until="domcontentloaded", timeout=30_000)
 
-        # Пробуем найти кнопку "Написать" / чат
-        btn_selectors = [
-            "button:has-text('Написать')",
-            "a:has-text('Написать')",
-            "[data-name='sendMessage']",
-            "button.send-message",
-            ".offer-chat__button",
-            ".contacts__btn-message",
-            "[class*='message'][class*='btn']",
-            "[class*='chat'][class*='btn']",
-        ]
-
-        btn = None
-        for sel in btn_selectors:
-            try:
-                btn = await page.wait_for_selector(sel, timeout=3_000)
-                if btn:
-                    break
-            except Exception:
-                continue
-
-        if not btn:
-            return False
-
-        # Кликаем и ждём загрузки SPA-страницы чата (/my/messages/)
-        await btn.click()
-        try:
-            await page.wait_for_url("**/my/messages/**", timeout=10_000)
-        except Exception:
-            pass
-        # SPA использует хэш-роутинг — ждём полного рендера через networkidle
+        # SPA (React) — ждём полного рендера
         try:
             await page.wait_for_load_state("networkidle", timeout=15_000)
         except Exception:
             pass
         await asyncio.sleep(3)
 
-        # Прокручиваем вниз — поле ввода в нижней части страницы
-        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
-        await asyncio.sleep(1)
+        # Ищем любой редактируемый элемент через JS:
+        # textarea, input[text], или contenteditable div (React-чат)
+        focused = await page.evaluate("""
+            () => {
+                const el = (
+                    document.querySelector('textarea') ||
+                    document.querySelector('input[type="text"]') ||
+                    document.querySelector('[contenteditable="true"]') ||
+                    document.querySelector('[contenteditable]')
+                );
+                if (!el) return null;
+                el.scrollIntoView({ behavior: 'instant', block: 'center' });
+                el.focus();
+                return el.tagName + '|' + (el.placeholder || el.getAttribute('contenteditable') || 'found');
+            }
+        """)
 
-        # Ищем видимое поле ввода через JS (надёжнее для SPA чем CSS-селекторы)
-        field = None
-        for sel in ["textarea", "input[type='text']", "input:not([type='hidden']):not([type='submit'])"]:
-            try:
-                candidate = await page.wait_for_selector(sel, timeout=4_000)
-                if candidate:
-                    # Проверяем видимость
-                    is_visible = await candidate.is_visible()
-                    if is_visible:
-                        field = candidate
-                        break
-            except Exception:
-                continue
-
-        if not field:
+        if not focused:
             return False
 
-        await field.scroll_into_view_if_needed()
-        await field.click()
         await asyncio.sleep(0.5)
-        await field.fill(message_text)
+
+        # keyboard.type() генерирует реальные нажатия клавиш — работает с React/Vue
+        await page.keyboard.type(message_text, delay=40)
         await asyncio.sleep(0.8)
 
-        # Пробуем кнопку отправки, иначе — Enter (самый надёжный fallback)
+        # Ищем видимую кнопку отправки
         send_btn = None
         for sel in [
             "button[type='submit']",
             "button:has-text('Отправить')",
-            ".send-message__submit",
             "[class*='submit']",
             "[class*='send-btn']",
+            "[class*='send'][class*='btn']",
         ]:
             try:
                 candidate = await page.query_selector(sel)
@@ -378,7 +355,8 @@ async def send_message(listing_url: str, message_text: str) -> bool:
         if send_btn:
             await send_btn.click()
         else:
-            await field.press("Enter")
+            # Fallback: Enter отправляет в большинстве чатов
+            await page.keyboard.press("Enter")
 
         await asyncio.sleep(2)
         return True
