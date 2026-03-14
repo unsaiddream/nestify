@@ -183,28 +183,38 @@ def _parse_rooms(text: str) -> int | None:
 async def search_listings(client: dict, max_pages: int = 3) -> list[RawListing]:
     """
     Ищет объявления на Krisha.kz по параметрам клиента.
-    Если задан полигон — использует map URL и скрапит правый сайдбар.
+    Если задан полигон — пробует map URL, при 0 результатах — fallback на list URL.
     """
     url = _build_search_url(client)
     is_map = "/map/" in url
 
     if is_map:
-        return await _search_map(url)
+        results = await _search_map(url)
+        if not results:
+            # Fallback: map URL не дал результатов (редирект или 0 в полигоне)
+            # Строим обычный list URL с теми же фильтрами без полигона
+            fallback_client = {**client, "area_polygon": None}
+            fallback_url = _build_search_url(fallback_client)
+            results = await _search_list(fallback_url, max_pages)
+        return results
     else:
         return await _search_list(url, max_pages)
 
 
 async def _search_map(url: str) -> list[RawListing]:
-    """Поиск через map URL Krisha — скрапим список в правом сайдбаре."""
+    """Поиск через map URL Krisha — скрапим список в боковой панели."""
     results: list[RawListing] = []
     page = await new_page()
     try:
-        await page.goto(url, wait_until="domcontentloaded", timeout=30_000)
-        await asyncio.sleep(2.5)  # ждём загрузки карты и сайдбара
-
-        # Ждём карточки в сайдбаре
+        # networkidle ждёт пока карта и AJAX-запросы завершатся
         try:
-            await page.wait_for_selector(".a-card", timeout=10_000)
+            await page.goto(url, wait_until="networkidle", timeout=45_000)
+        except Exception:
+            pass
+        await asyncio.sleep(3)  # дополнительное ожидание рендера боковой панели
+
+        try:
+            await page.wait_for_selector(".a-card", timeout=12_000)
         except Exception:
             return results
 
@@ -216,6 +226,21 @@ async def _search_map(url: str) -> list[RawListing]:
                     results.append(listing)
             except Exception:
                 continue
+
+        # Если нашли мало карточек — прокручиваем список вниз для подгрузки
+        if 0 < len(results) < 5:
+            await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+            await asyncio.sleep(2)
+            cards = await page.query_selector_all(".a-card")
+            results.clear()
+            for card in cards:
+                try:
+                    listing = await _parse_card(card)
+                    if listing:
+                        results.append(listing)
+                except Exception:
+                    continue
+
 
     finally:
         await page.close()
