@@ -457,6 +457,11 @@ async function loadSettingsPage() {
     if (has_token && masked) { el.textContent = masked; el.style.color = 'var(--success)'; }
     else { el.textContent = 'не задан'; el.style.color = 'var(--danger)'; }
   } catch (_) {}
+  try {
+    const { model } = await api('GET', '/api/auth/gemini-model');
+    const sel = document.getElementById('settings-model');
+    if (sel && model) sel.value = model;
+  } catch (_) {}
 }
 
 document.getElementById('btn-update-token').addEventListener('click', async () => {
@@ -471,6 +476,17 @@ document.getElementById('btn-update-token').addEventListener('click', async () =
     await loadSettingsPage();
   } catch (e) { showToast(e.message, 'error'); }
   finally { btn.disabled = false; btn.textContent = 'Сохранить токен'; }
+});
+
+document.getElementById('btn-save-model').addEventListener('click', async () => {
+  const model = document.getElementById('settings-model').value;
+  const btn = document.getElementById('btn-save-model');
+  btn.disabled = true; btn.textContent = 'Сохраняем...';
+  try {
+    await api('POST', '/api/auth/gemini-model', { model });
+    showToast(`Модель сохранена: ${model}`);
+  } catch (e) { showToast(e.message, 'error'); }
+  finally { btn.disabled = false; btn.textContent = '💾 Сохранить модель'; }
 });
 
 document.getElementById('btn-test-gemini').addEventListener('click', async () => {
