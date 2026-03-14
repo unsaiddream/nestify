@@ -318,65 +318,58 @@ async def send_message(listing_url: str, message_text: str) -> bool:
         if not btn:
             return False
 
-        # Кликаем и ждём загрузки страницы чата (Krisha открывает отдельную страницу)
+        # Кликаем и ждём загрузки SPA-страницы чата (/my/messages/)
         await btn.click()
         try:
-            await page.wait_for_load_state("domcontentloaded", timeout=10_000)
+            await page.wait_for_url("**/my/messages/**", timeout=10_000)
         except Exception:
             pass
-        await asyncio.sleep(2)
+        # SPA использует хэш-роутинг — ждём полного рендера через networkidle
+        try:
+            await page.wait_for_load_state("networkidle", timeout=15_000)
+        except Exception:
+            pass
+        await asyncio.sleep(3)
 
-        # Ищем поле ввода — может быть textarea ИЛИ input
-        input_selectors = [
-            "textarea[placeholder*='сообщен']",
-            "textarea[placeholder*='Сообщен']",
-            "textarea[placeholder*='Написать']",
-            "input[placeholder*='сообщен']",
-            "input[placeholder*='Сообщен']",
-            "input[placeholder*='Написать']",
-            "textarea.send-message__textarea",
-            ".offer-chat__input textarea",
-            ".offer-chat__input input",
-            "[class*='chat'] textarea",
-            "[class*='chat'] input[type='text']",
-            "[class*='message'] textarea",
-            "[class*='input'] textarea",
-            "textarea",
-        ]
+        # Прокручиваем вниз — поле ввода в нижней части страницы
+        await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
+        await asyncio.sleep(1)
 
+        # Ищем видимое поле ввода через JS (надёжнее для SPA чем CSS-селекторы)
         field = None
-        for sel in input_selectors:
+        for sel in ["textarea", "input[type='text']", "input:not([type='hidden']):not([type='submit'])"]:
             try:
-                field = await page.wait_for_selector(sel, timeout=3_000)
-                if field:
-                    break
+                candidate = await page.wait_for_selector(sel, timeout=4_000)
+                if candidate:
+                    # Проверяем видимость
+                    is_visible = await candidate.is_visible()
+                    if is_visible:
+                        field = candidate
+                        break
             except Exception:
                 continue
 
         if not field:
             return False
 
+        await field.scroll_into_view_if_needed()
         await field.click()
+        await asyncio.sleep(0.5)
         await field.fill(message_text)
         await asyncio.sleep(0.8)
 
-        # Сначала пробуем кнопку отправки, иначе — Enter
-        send_selectors = [
+        # Пробуем кнопку отправки, иначе — Enter (самый надёжный fallback)
+        send_btn = None
+        for sel in [
             "button[type='submit']",
             "button:has-text('Отправить')",
             ".send-message__submit",
             "[class*='submit']",
-            # кнопка-стрелка рядом с полем ввода (svg-иконка)
-            "[class*='send'][class*='button']",
             "[class*='send-btn']",
-            "button svg",  # кнопка с иконкой
-        ]
-
-        send_btn = None
-        for sel in send_selectors:
+        ]:
             try:
                 candidate = await page.query_selector(sel)
-                if candidate:
+                if candidate and await candidate.is_visible():
                     send_btn = candidate
                     break
             except Exception:
@@ -385,10 +378,9 @@ async def send_message(listing_url: str, message_text: str) -> bool:
         if send_btn:
             await send_btn.click()
         else:
-            # Fallback: Enter в поле ввода
             await field.press("Enter")
 
-        await asyncio.sleep(1.5)
+        await asyncio.sleep(2)
         return True
 
     except Exception:
