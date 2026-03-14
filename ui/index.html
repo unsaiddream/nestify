@@ -230,7 +230,11 @@
             <label>Новый Gemini API Token</label>
             <input type="text" id="settings-token" placeholder="AIzaSy..." autocomplete="off" />
           </div>
-          <button class="btn btn-primary" id="btn-update-token" style="margin-bottom:16px;">Сохранить токен</button>
+          <div style="display:flex;gap:8px;margin-bottom:16px;">
+            <button class="btn btn-primary" id="btn-update-token" style="flex:1;margin:0;">Сохранить токен</button>
+            <button class="btn btn-ghost" id="btn-test-gemini" style="flex:1;">🧪 Тест Gemini</button>
+          </div>
+          <p id="gemini-test-result" style="font-size:12px;margin-bottom:8px;white-space:pre-wrap;"></p>
           <hr style="border:none;border-top:1px solid var(--glass-border);margin:20px 0;" />
           <p style="font-size:13px;font-weight:600;margin-bottom:10px;">Браузер (Krisha.kz)</p>
           <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">Открывает браузер с Krisha.kz. Если не залогинен — войдите вручную один раз.</p>
