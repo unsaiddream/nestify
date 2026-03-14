@@ -228,7 +228,8 @@ async def _search_list(url: str, max_pages: int) -> list[RawListing]:
     page = await new_page()
     try:
         for page_num in range(1, max_pages + 1):
-            page_url = url if page_num == 1 else f"{url}&page={page_num}"
+            sep = "&" if "?" in url else "?"
+            page_url = url if page_num == 1 else f"{url}{sep}page={page_num}"
             await page.goto(page_url, wait_until="domcontentloaded", timeout=30_000)
             await asyncio.sleep(1.5)
 
@@ -382,11 +383,11 @@ async def _parse_card(card) -> RawListing | None:
     area  = _parse_area(params_text)
 
     # Район / адрес
-    district_el = await card.query_selector(".a-card__addr, .offer__location")
+    district_el = await card.query_selector(".a-card__subtitle, .a-card__addr, .offer__location")
     district_text = (await district_el.inner_text()).strip() if district_el else None
 
     # Описание (краткое)
-    desc_el = await card.query_selector(".a-card__description")
+    desc_el = await card.query_selector(".a-card__text-preview, .a-card__description")
     desc_text = (await desc_el.inner_text()).strip() if desc_el else None
 
     return RawListing(

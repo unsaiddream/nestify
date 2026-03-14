@@ -8,7 +8,7 @@ import logging
 
 import aiosqlite
 
-from agent.browser import search_listings, send_message
+from agent.browser import search_listings, send_message, _build_search_url
 from agent.gemini import analyze_listing
 from database.db import DB_PATH
 
@@ -70,6 +70,10 @@ async def _scan_all_clients():
 
 async def _process_client(client: dict):
     """Ищет и анализирует объявления для одного клиента."""
+    search_url = _build_search_url(client)
+    logger.info(f"URL поиска: {search_url}")
+    await _log_action("search_url", f"Клиент {client['name']}: {search_url}")
+
     # Поиск объявлений через Playwright
     try:
         raw_listings = await search_listings(client, max_pages=2)
