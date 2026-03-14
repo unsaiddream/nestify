@@ -404,13 +404,26 @@ async def _parse_card(card) -> RawListing | None:
     desc_el = await card.query_selector(".a-card__text-preview, .a-card__description")
     desc_text = (await desc_el.inner_text()).strip() if desc_el else None
 
-    # Первое фото объявления (для превью в интерфейсе)
-    img_el = await card.query_selector("img.a-card__photo-img, .a-card__photos img, .a-card__image img, img[src*='krisha']")
+    # Первое фото объявления — перебираем несколько селекторов (lazy-load img)
     thumbnail = None
-    if img_el:
-        src = await img_el.get_attribute("src") or await img_el.get_attribute("data-src") or ""
-        if src and src.startswith("http"):
+    for img_sel in [
+        "img.a-card__photo-img",
+        ".a-card__photos img",
+        ".a-card__image img",
+        ".a-card__gallery img",
+        "img[src*='krisha']",
+        "img[data-src*='krisha']",
+        "img[src*='img.']",
+    ]:
+        img_el = await card.query_selector(img_sel)
+        if not img_el:
+            continue
+        src = (await img_el.get_attribute("src") or
+               await img_el.get_attribute("data-src") or
+               await img_el.get_attribute("data-lazy") or "")
+        if src and src.startswith("http") and any(ext in src for ext in [".jpg", ".jpeg", ".png", ".webp"]):
             thumbnail = src
+            break
 
     return RawListing(
         krisha_id=krisha_id,

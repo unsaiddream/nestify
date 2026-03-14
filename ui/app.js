@@ -804,26 +804,26 @@ document.addEventListener('mouseover', e => {
   if (!link) return;
 
   clearTimeout(_tooltipTimer);
-  _tooltipTimer = setTimeout(() => {
-    const data = JSON.parse(link.dataset.listing || '{}');
-    _fillTooltip(data);
-    _positionTooltip(e);
-    tooltip.classList.add('visible');
-    _tooltipActive = true;
-  }, 280);
+  // Показываем сразу — без задержки, данные есть в data-атрибуте
+  const data = JSON.parse(link.dataset.listing || '{}');
+  _fillTooltip(data);
+  _positionTooltip(e);
+  tooltip.classList.add('visible');
+  _tooltipActive = true;
 });
 
 document.addEventListener('mousemove', e => {
   if (!tooltip.classList.contains('visible')) return;
-  if (!e.target.closest('a.listing-title[data-listing]') &&
-      !e.target.closest('#listing-tooltip')) {
+  const overLink    = !!e.target.closest('a.listing-title[data-listing]');
+  const overTooltip = !!e.target.closest('#listing-tooltip');
+  if (overLink) {
+    _positionTooltip(e);
+  } else if (!overTooltip) {
     clearTimeout(_tooltipTimer);
     _tooltipTimer = setTimeout(() => {
       tooltip.classList.remove('visible');
       _tooltipActive = false;
-    }, 120);
-  } else if (e.target.closest('a.listing-title[data-listing]')) {
-    _positionTooltip(e);
+    }, 80);
   }
 });
 
@@ -831,16 +831,19 @@ document.addEventListener('mouseout', e => {
   if (!e.target.closest('a.listing-title[data-listing]')) return;
   clearTimeout(_tooltipTimer);
   _tooltipTimer = setTimeout(() => {
-    if (!document.querySelector('#listing-tooltip:hover')) {
+    if (!tooltip.matches(':hover')) {
       tooltip.classList.remove('visible');
       _tooltipActive = false;
     }
-  }, 150);
+  }, 100);
 });
 
 tooltip.addEventListener('mouseleave', () => {
-  tooltip.classList.remove('visible');
-  _tooltipActive = false;
+  clearTimeout(_tooltipTimer);
+  _tooltipTimer = setTimeout(() => {
+    tooltip.classList.remove('visible');
+    _tooltipActive = false;
+  }, 80);
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
