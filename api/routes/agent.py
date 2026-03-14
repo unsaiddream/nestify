@@ -155,11 +155,27 @@ async def debug_selectors():
             if body:
                 html_snippet = (await body.inner_html())[:3000]
 
-            # HTML первой карточки .a-card для анализа структуры
+            # HTML первой карточки .a-card + внутренние селекторы
             first_card_html = ""
+            card_inner_selectors = {}
             first_card = await page.query_selector(".a-card")
             if first_card:
                 first_card_html = await first_card.inner_html()
+                # Проверяем все вложенные селекторы которые используем в парсере
+                inner_check = [
+                    "a.a-card__title", ".a-card__header a", "a[href*='/a/show/']",
+                    ".a-card__price", "[class*='price']",
+                    ".a-card__header-left", ".offer__info-title", "[class*='header']",
+                    ".a-card__addr", ".offer__location", "[class*='addr']", "[class*='location']",
+                    ".a-card__description", "[class*='description']",
+                    "a", "[href*='/a/show/']",
+                ]
+                for sel in inner_check:
+                    els = await first_card.query_selector_all(sel)
+                    if els:
+                        # Для первого элемента покажем текст
+                        txt = (await els[0].inner_text()).strip()[:80]
+                        card_inner_selectors[sel] = {"count": len(els), "text": txt}
 
             title = await page.title()
             return {
@@ -167,7 +183,8 @@ async def debug_selectors():
                 "url": page.url,
                 "title": title,
                 "selectors_found": found,
-                "first_card_html": first_card_html[:3000],
+                "card_inner_selectors": card_inner_selectors,
+                "first_card_html": first_card_html[:4000],
             }
         finally:
             await page.close()
