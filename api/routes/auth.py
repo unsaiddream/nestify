@@ -30,6 +30,25 @@ async def gemini_token_status():
     token = await get_setting("gemini_token")
     masked = None
     if token:
-        # Показываем только первые 8 и последние 4 символа: AIzaSyAB...xYzW
         masked = token[:8] + "..." + token[-4:] if len(token) > 12 else token[:4] + "..."
     return {"has_token": token is not None, "masked": masked}
+
+
+@router.post("/test-gemini")
+async def test_gemini():
+    """Отправляет тестовый запрос к Gemini API и возвращает результат или ошибку."""
+    token = await get_setting("gemini_token")
+    if not token:
+        return {"status": "error", "message": "Токен не настроен"}
+    try:
+        import asyncio
+        import google.generativeai as genai
+        genai.configure(api_key=token)
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = await asyncio.to_thread(
+            model.generate_content,
+            'Ответь одним словом: "работает"'
+        )
+        return {"status": "ok", "message": f"Gemini отвечает: {response.text.strip()[:100]}"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}

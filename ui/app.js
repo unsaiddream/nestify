@@ -473,6 +473,28 @@ document.getElementById('btn-update-token').addEventListener('click', async () =
   finally { btn.disabled = false; btn.textContent = 'Сохранить токен'; }
 });
 
+document.getElementById('btn-test-gemini').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-test-gemini');
+  const result = document.getElementById('gemini-test-result');
+  btn.disabled = true; btn.textContent = '⏳ Проверяем...';
+  result.textContent = '';
+  try {
+    const data = await api('POST', '/api/auth/test-gemini');
+    if (data.status === 'ok') {
+      result.style.color = 'var(--success)';
+      result.textContent = '✓ ' + data.message;
+    } else {
+      result.style.color = 'var(--danger)';
+      result.textContent = '✗ Ошибка: ' + data.message;
+    }
+  } catch (e) {
+    result.style.color = 'var(--danger)';
+    result.textContent = '✗ ' + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = '🧪 Тест Gemini';
+  }
+});
+
 document.getElementById('btn-install-playwright').addEventListener('click', async () => {
   const btn = document.getElementById('btn-install-playwright');
   const result = document.getElementById('browser-open-result');
