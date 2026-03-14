@@ -374,19 +374,3 @@ tbody td {
   gap: 12px;
 }
 
-/* Шаг-индикатор онбординга */
-.steps {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 24px;
-}
-
-.step {
-  flex: 1;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--border);
-}
-
-.step.done    { background: var(--accent); }
-.step.current { background: var(--accent); opacity: .5; }

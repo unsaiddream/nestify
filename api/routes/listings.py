@@ -72,3 +72,31 @@ async def delete_client(client_id: int):
         await db.execute("UPDATE clients SET active = 0 WHERE id = ?", (client_id,))
         await db.commit()
     return {"status": "ok"}
+
+
+@router.get("/stats")
+async def get_stats():
+    """Возвращает общую статистику для дашборда."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        async def count(query, params=()):
+            async with db.execute(query, params) as cur:
+                row = await cur.fetchone()
+                return row[0] if row else 0
+
+        clients   = await count("SELECT COUNT(*) FROM clients WHERE active = 1")
+        listings  = await count("SELECT COUNT(*) FROM listings")
+        approved  = await count("SELECT COUNT(*) FROM listings WHERE status = 'approved'")
+        messaged  = await count("SELECT COUNT(*) FROM listings WHERE status = 'messaged'")
+        messages  = await count("SELECT COUNT(*) FROM messages")
+        actions_today = await count(
+            "SELECT COUNT(*) FROM actions_log WHERE date(created_at) = date('now')"
+        )
+
+    return {
+        "clients": clients,
+        "listings": listings,
+        "approved": approved,
+        "messaged": messaged,
+        "messages": messages,
+        "actions_today": actions_today,
+    }

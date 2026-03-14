@@ -30,7 +30,7 @@ function showToast(msg, type = 'success') {
 }
 
 function showScreen(id) {
-  ['screen-token', 'screen-login', 'screen-dashboard'].forEach(s => {
+  ['screen-token', 'screen-dashboard'].forEach(s => {
     document.getElementById(s).classList.toggle('hidden', s !== id);
   });
 }
@@ -49,22 +49,17 @@ function fmt(n) {
   return Number(n).toLocaleString('ru-RU');
 }
 
-// ── Онбординг ────────────────────────────────────────────────────────────────
+// ── Онбординг: только токен ───────────────────────────────────────────────────
 
 async function checkOnboarding() {
   try {
     const { has_token } = await api('GET', '/api/auth/gemini-token/status');
-    if (!has_token) {
+    if (has_token) {
+      showScreen('screen-dashboard');
+      initDashboard();
+    } else {
       showScreen('screen-token');
-      return;
     }
-    const { logged_in } = await api('GET', '/api/auth/krisha-status');
-    if (!logged_in) {
-      showScreen('screen-login');
-      return;
-    }
-    showScreen('screen-dashboard');
-    initDashboard();
   } catch (e) {
     showScreen('screen-token');
   }
@@ -76,19 +71,6 @@ document.getElementById('btn-save-token').addEventListener('click', async () => 
   try {
     await api('POST', '/api/auth/gemini-token', { token });
     showToast('Токен сохранён ✓');
-    showScreen('screen-login');
-  } catch (e) {
-    showToast(e.message, 'error');
-  }
-});
-
-document.getElementById('btn-krisha-login').addEventListener('click', async () => {
-  const phone    = document.getElementById('krisha-phone').value.trim();
-  const password = document.getElementById('krisha-password').value;
-  if (!phone || !password) { showToast('Заполните все поля', 'error'); return; }
-  try {
-    await api('POST', '/api/auth/krisha-login', { phone, password });
-    showToast('Подключено ✓');
     showScreen('screen-dashboard');
     initDashboard();
   } catch (e) {
@@ -110,19 +92,25 @@ async function initDashboard() {
   showPage('overview');
   await loadStats();
   await loadOverviewListings();
+  await loadAgentLog();
   await updateAgentStatus();
+  // Автообновление каждые 15 секунд пока открыт дашборд
+  setInterval(async () => {
+    await loadStats();
+    await loadOverviewListings();
+    await loadAgentLog();
+    await updateAgentStatus();
+  }, 15_000);
 }
 
 // Статистика
 async function loadStats() {
   try {
-    const clients  = await api('GET', '/api/listings/clients');
-    const listings = await api('GET', '/api/listings/');
-
-    document.getElementById('stat-clients').textContent  = clients.length;
-    document.getElementById('stat-listings').textContent = listings.length;
-    document.getElementById('stat-messages').textContent = '0';
-    document.getElementById('stat-actions').textContent  = '0';
+    const s = await api('GET', '/api/listings/stats');
+    document.getElementById('stat-clients').textContent  = s.clients;
+    document.getElementById('stat-listings').textContent = s.listings;
+    document.getElementById('stat-messages').textContent = s.messages;
+    document.getElementById('stat-actions').textContent  = s.actions_today;
   } catch (_) {}
 }
 
@@ -201,7 +189,6 @@ document.getElementById('btn-add-client').addEventListener('click', async () => 
     showToast('Клиент добавлен ✓');
     loadClients();
     loadStats();
-    // Сбрасываем форму
     ['c-name','c-district','c-budget-min','c-budget-max','c-area-min','c-area-max'].forEach(id => {
       document.getElementById(id).value = '';
     });
@@ -246,6 +233,24 @@ async function loadListings() {
   } catch (e) {
     showToast(e.message, 'error');
   }
+}
+
+// Лог агента
+async function loadAgentLog() {
+  try {
+    const rows = await api('GET', '/api/agent/log?limit=20');
+    const tbody = document.getElementById('agent-log-body');
+    if (!rows.length) return;
+    const actionLabel = { search: '🔍 Поиск', analyze: '🤖 Анализ', search_error: '❌ Ошибка', send_message: '💬 Сообщение' };
+    tbody.innerHTML = rows.map(r => {
+      const time = new Date(r.created_at + 'Z').toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      return `<tr>
+        <td style="color:var(--text-muted);white-space:nowrap;">${time}</td>
+        <td>${actionLabel[r.action] || r.action}</td>
+        <td style="color:var(--text-muted);">${r.details || ''}</td>
+      </tr>`;
+    }).join('');
+  } catch (_) {}
 }
 
 // ── Агент ─────────────────────────────────────────────────────────────────────

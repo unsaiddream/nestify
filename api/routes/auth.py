@@ -1,5 +1,6 @@
 """
-Роуты аутентификации: сохранение Gemini токена, логин в Krisha.kz.
+Роуты аутентификации: сохранение Gemini токена.
+Логин в Krisha.kz не нужен — агент использует браузер с уже открытой сессией.
 """
 
 from fastapi import APIRouter, HTTPException
@@ -12,11 +13,6 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 class GeminiTokenRequest(BaseModel):
     token: str
-
-
-class KrishaLoginRequest(BaseModel):
-    phone: str
-    password: str
 
 
 @router.post("/gemini-token")
@@ -33,19 +29,3 @@ async def gemini_token_status():
     """Проверяет, сохранён ли Gemini токен."""
     token = await get_setting("gemini_token")
     return {"has_token": token is not None}
-
-
-@router.post("/krisha-login")
-async def krisha_login(body: KrishaLoginRequest):
-    """
-    Логин в Krisha.kz через Playwright.
-    TODO: реализовать в шаге 3 MVP.
-    """
-    return {"status": "pending", "message": "Логин через Playwright будет реализован в шаге 3"}
-
-
-@router.get("/krisha-status")
-async def krisha_status():
-    """Проверяет статус сессии Krisha.kz."""
-    logged_in = await get_setting("krisha_logged_in")
-    return {"logged_in": logged_in == "true"}

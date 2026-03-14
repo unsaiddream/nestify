@@ -11,7 +11,7 @@
 <body>
 
 <!-- ═══════════════════════════════════════════════
-     Экран 1: Ввод Gemini API токена
+     Экран: Ввод Gemini API токена
 ════════════════════════════════════════════════ -->
 <div id="screen-token" class="screen">
   <div class="card">
@@ -20,23 +20,21 @@
       <span class="logo-text">Nestify</span>
     </div>
 
-    <div class="steps">
-      <div class="step current"></div>
-      <div class="step"></div>
-    </div>
-
     <h1>Добро пожаловать</h1>
-    <p class="subtitle">Введите ваш Gemini API токен для начала работы. Токен хранится только локально.</p>
+    <p class="subtitle">
+      Введите Gemini API токен — он хранится только локально.<br/>
+      Агент будет работать через ваш браузер, где уже открыт Krisha.kz.
+    </p>
 
-    <div class="field">
+    <div class="field mt-2">
       <label>Gemini API Token</label>
       <input type="password" id="gemini-token-input" placeholder="AIza..." autocomplete="off" />
     </div>
 
-    <button class="btn btn-primary mt-1" id="btn-save-token">Продолжить →</button>
+    <button class="btn btn-primary mt-1" id="btn-save-token">Открыть дашборд →</button>
 
     <p class="mt-2" style="font-size:12px;color:var(--text-muted);text-align:center;">
-      Получить токен можно на
+      Получить токен →
       <a href="https://aistudio.google.com/app/apikey" target="_blank"
          style="color:var(--accent);text-decoration:none;">Google AI Studio</a>
     </p>
@@ -44,39 +42,7 @@
 </div>
 
 <!-- ═══════════════════════════════════════════════
-     Экран 2: Логин в Krisha.kz
-════════════════════════════════════════════════ -->
-<div id="screen-login" class="screen hidden">
-  <div class="card">
-    <div class="logo">
-      <div class="logo-icon">🏠</div>
-      <span class="logo-text">Nestify</span>
-    </div>
-
-    <div class="steps">
-      <div class="step done"></div>
-      <div class="step current"></div>
-    </div>
-
-    <h1>Логин в Krisha.kz</h1>
-    <p class="subtitle">Введите данные вашего аккаунта риелтора на Krisha.kz.</p>
-
-    <div class="field">
-      <label>Телефон</label>
-      <input type="tel" id="krisha-phone" placeholder="+7 777 000 00 00" />
-    </div>
-
-    <div class="field">
-      <label>Пароль</label>
-      <input type="password" id="krisha-password" placeholder="••••••••" />
-    </div>
-
-    <button class="btn btn-primary mt-1" id="btn-krisha-login">Войти и открыть дашборд →</button>
-  </div>
-</div>
-
-<!-- ═══════════════════════════════════════════════
-     Экран 3: Дашборд
+     Экран: Дашборд
 ════════════════════════════════════════════════ -->
 <div id="screen-dashboard" class="screen hidden">
   <div class="dashboard-layout">
@@ -155,6 +121,24 @@
             <tbody id="overview-listings-body">
               <tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:32px;">
                 Нет данных. Добавьте клиента и запустите агента.
+              </td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h3 style="font-size:14px;font-weight:600;margin:28px 0 12px;">Лог агента</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Время</th>
+                <th>Действие</th>
+                <th>Детали</th>
+              </tr>
+            </thead>
+            <tbody id="agent-log-body">
+              <tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:24px;">
+                Агент ещё не запускался
               </td></tr>
             </tbody>
           </table>
