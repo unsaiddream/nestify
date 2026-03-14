@@ -81,65 +81,31 @@ async def _process_client(client: dict):
     logger.info(f"Найдено {len(raw_listings)} объявлений для {client['name']}")
     await _log_action("search", f"Клиент {client['name']}: найдено {len(raw_listings)} объявлений")
 
+    # Новые объявления с Krisha
     new_count = 0
     for raw in raw_listings:
-        # Пропускаем уже известные объявления
         if await _listing_exists(raw.krisha_id):
             continue
-
-        # Сохраняем как новое
         listing_id = await _save_listing(raw, client["id"])
         new_count += 1
-
-        # Анализ через Gemini
-        listing_dict = {
-            "title": raw.title,
-            "price": raw.price,
-            "area": raw.area,
-            "rooms": raw.rooms,
-            "district": raw.district,
-            "description": raw.description,
-            "url": raw.url,
-        }
-        try:
-            analysis = await analyze_listing(listing_dict, client)
-            status = "approved" if analysis.approved else "rejected"
-            await _update_listing_analysis(listing_id, analysis.score, analysis.comment, status)
-
-            logger.info(
-                f"  [{status.upper()}] {raw.title[:50]} | score={analysis.score} | {analysis.comment[:60]}"
-            )
-            await _log_action(
-                "analyze",
-                f"Объявление {raw.krisha_id}: score={analysis.score}, {status}",
-            )
-
-            # Отправляем сообщение продавцу если объявление одобрено
-            if analysis.approved and analysis.message:
-                await asyncio.sleep(2)  # пауза перед отправкой
-                ok = await send_message(raw.url, analysis.message)
-                if ok:
-                    await _save_message(listing_id, analysis.message)
-                    await _update_listing_status(listing_id, "messaged")
-                    await _log_action(
-                        "send_message",
-                        f"Объявление {raw.krisha_id}: сообщение отправлено",
-                    )
-                    logger.info(f"  💬 Сообщение отправлено: {raw.krisha_id}")
-                else:
-                    await _log_action(
-                        "message_error",
-                        f"Объявление {raw.krisha_id}: не удалось отправить сообщение",
-                    )
-                    logger.warning(f"  ⚠️ Не удалось отправить: {raw.krisha_id}")
-
-        except Exception as e:
-            logger.error(f"Ошибка Gemini для {raw.krisha_id}: {e}")
-
-        # Задержка между запросами к Gemini — не спамим API
+        await _analyze_and_message(raw.krisha_id, listing_id, raw, client)
         await asyncio.sleep(1.5)
 
     logger.info(f"Новых объявлений для {client['name']}: {new_count}")
+
+    # Повторный анализ объявлений с score=0 (предыдущий анализ упал с ошибкой)
+    failed = await _get_failed_listings(client["id"])
+    if failed:
+        logger.info(f"Повторный анализ {len(failed)} failed объявлений для {client['name']}")
+    for row in failed:
+        raw_dict = {
+            "title": row["title"], "price": row["price"], "area": row["area"],
+            "rooms": row["rooms"], "district": row["district"],
+            "description": row["description"], "url": row["url"],
+            "krisha_id": row["krisha_id"],
+        }
+        await _analyze_and_message_dict(row["krisha_id"], row["id"], raw_dict, client)
+        await asyncio.sleep(1.5)
 
 
 # ── Работа с БД ────────────────────────────────────────────────────────────────
@@ -198,6 +164,63 @@ async def _update_listing_status(listing_id: int, status: str):
             (status, listing_id),
         )
         await db.commit()
+
+
+async def _get_failed_listings(client_id: int) -> list[dict]:
+    """Возвращает объявления клиента с score=0 (анализ упал с ошибкой)."""
+    async with aiosqlite.connect(DB_PATH) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT * FROM listings
+               WHERE client_id = ? AND (ai_score IS NULL OR ai_score = 0)
+               AND status IN ('new', 'rejected')
+               ORDER BY found_at DESC LIMIT 20""",
+            (client_id,),
+        ) as cur:
+            rows = await cur.fetchall()
+    return [dict(r) for r in rows]
+
+
+async def _analyze_and_message(krisha_id: str, listing_id: int, raw, client: dict):
+    """Анализирует объявление (RawListing) и отправляет сообщение если одобрено."""
+    listing_dict = {
+        "title": raw.title, "price": raw.price, "area": raw.area,
+        "rooms": raw.rooms, "district": raw.district,
+        "description": raw.description, "url": raw.url,
+    }
+    await _analyze_and_message_dict(krisha_id, listing_id, listing_dict, client)
+
+
+async def _analyze_and_message_dict(krisha_id: str, listing_id: int, listing_dict: dict, client: dict):
+    """Анализирует объявление (dict) и отправляет сообщение если одобрено."""
+    try:
+        analysis = await analyze_listing(listing_dict, client)
+        status = "approved" if analysis.approved else "rejected"
+        await _update_listing_analysis(listing_id, analysis.score, analysis.comment, status)
+        logger.info(
+            f"  [{status.upper()}] score={analysis.score} | {analysis.comment[:60]}"
+        )
+        await _log_action(
+            "analyze",
+            f"Объявление {krisha_id}: score={analysis.score}, {status}",
+        )
+
+        if analysis.approved and analysis.message:
+            await asyncio.sleep(2)
+            ok = await send_message(listing_dict["url"], analysis.message)
+            if ok:
+                await _save_message(listing_id, analysis.message)
+                await _update_listing_status(listing_id, "messaged")
+                await _log_action("send_message", f"Объявление {krisha_id}: сообщение отправлено")
+                logger.info(f"  💬 Сообщение отправлено: {krisha_id}")
+            else:
+                await _log_action("message_error", f"Объявление {krisha_id}: не удалось отправить")
+                logger.warning(f"  ⚠️ Не удалось отправить: {krisha_id}")
+
+    except Exception as e:
+        err_msg = str(e)
+        logger.error(f"Ошибка анализа {krisha_id}: {err_msg}")
+        await _log_action("analyze_error", f"Объявление {krisha_id}: {err_msg}")
 
 
 async def _log_action(action: str, details: str):

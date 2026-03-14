@@ -184,7 +184,7 @@ async function loadAgentLog() {
     const rows = await api('GET', '/api/agent/log?limit=20');
     const tbody = document.getElementById('agent-log-body');
     if (!rows.length) return;
-    const label = { search: '🔍 Поиск', analyze: '🤖 Анализ', search_error: '❌ Ошибка', send_message: '💬 Сообщение', browser_open: '🌐 Браузер', browser_error: '⚠️ Браузер', agent_error: '❌ Агент' };
+    const label = { search: '🔍 Поиск', analyze: '🤖 Анализ', search_error: '❌ Поиск', send_message: '💬 Сообщение', browser_open: '🌐 Браузер', browser_error: '⚠️ Браузер', agent_error: '❌ Агент', analyze_error: '⚠️ Gemini', message_error: '⚠️ Сообщение' };
     tbody.innerHTML = rows.map(r => {
       const time = new Date(r.created_at + 'Z').toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       return `<tr>
