@@ -29,6 +29,7 @@ class RawListing:
     rooms: int | None
     district: str | None
     description: str | None
+    thumbnail: str | None = None
 
 
 async def get_context() -> BrowserContext:
@@ -403,6 +404,14 @@ async def _parse_card(card) -> RawListing | None:
     desc_el = await card.query_selector(".a-card__text-preview, .a-card__description")
     desc_text = (await desc_el.inner_text()).strip() if desc_el else None
 
+    # Первое фото объявления (для превью в интерфейсе)
+    img_el = await card.query_selector("img.a-card__photo-img, .a-card__photos img, .a-card__image img, img[src*='krisha']")
+    thumbnail = None
+    if img_el:
+        src = await img_el.get_attribute("src") or await img_el.get_attribute("data-src") or ""
+        if src and src.startswith("http"):
+            thumbnail = src
+
     return RawListing(
         krisha_id=krisha_id,
         url=href,
@@ -412,4 +421,5 @@ async def _parse_card(card) -> RawListing | None:
         rooms=rooms,
         district=district_text,
         description=desc_text,
+        thumbnail=thumbnail,
     )

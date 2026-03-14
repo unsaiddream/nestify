@@ -169,9 +169,17 @@ function renderListingRow(r) {
 
   const meta = [district, areaStr].filter(x => x && x !== '—').join(' · ');
 
+  // Данные для hover-превью (без длинных полей чтоб не раздувать HTML)
+  const previewData = JSON.stringify({
+    id: r.id, title: r.title, price: r.price, area: r.area,
+    district: r.district, url: r.url,
+    ai_score: r.ai_score, ai_comment: r.ai_comment,
+  }).replace(/"/g, '&quot;');
+
   return `<div class="listing-row">
     <div>
-      <a class="listing-title" href="${r.url || '#'}" target="_blank">${r.title || r.krisha_id || '—'}</a>
+      <a class="listing-title" href="${r.url || '#'}" target="_blank"
+         data-listing="${previewData}">${r.title || r.krisha_id || '—'}</a>
       <div class="listing-meta">${meta || '—'}</div>
     </div>
     <div>${clientChip}</div>
@@ -708,6 +716,131 @@ document.getElementById('btn-save-polygon').addEventListener('click', async () =
     const opt = document.querySelector(`#map-client-select option[value="${clientId}"]`);
     if (opt) opt.dataset.polygon = coords;
   } catch (e) { showToast(e.message, 'error'); }
+});
+
+// ── Listing hover tooltip ─────────────────────────────────────────────────────
+
+const tooltip   = document.getElementById('listing-tooltip');
+const lttImg    = document.getElementById('ltt-img');
+const lttPh     = document.getElementById('ltt-img-placeholder');
+const lttTitle  = document.getElementById('ltt-title');
+const lttMeta   = document.getElementById('ltt-meta');
+const lttPrice  = document.getElementById('ltt-price');
+const lttScore  = document.getElementById('ltt-score-row');
+const lttComment= document.getElementById('ltt-comment');
+const lttLink   = document.getElementById('ltt-link');
+
+let _tooltipTimer  = null;
+let _tooltipActive = false;
+let _imgCache      = {};  // listingId → imageUrl
+
+function _positionTooltip(e) {
+  const TW = 300, TH = 380, PAD = 14;
+  let x = e.clientX + 18;
+  let y = e.clientY - 60;
+  if (x + TW + PAD > window.innerWidth)  x = e.clientX - TW - 18;
+  if (y + TH + PAD > window.innerHeight) y = window.innerHeight - TH - PAD;
+  if (y < PAD) y = PAD;
+  tooltip.style.left = x + 'px';
+  tooltip.style.top  = y + 'px';
+}
+
+function _fillTooltip(data) {
+  lttTitle.textContent = data.title || '—';
+
+  const meta = [data.district, data.area ? data.area + ' м²' : null]
+    .filter(Boolean).join(' · ');
+  lttMeta.textContent = meta || '';
+
+  lttPrice.textContent = data.price ? fmt(data.price) + ' ₸' : '—';
+
+  const s = data.ai_score;
+  let scl = 'none', slabel = 'AI оценка не задана';
+  if (s >= 7)      { scl = 'high'; slabel = `⭐ AI: ${s}/10`; }
+  else if (s >= 5) { scl = 'mid';  slabel = `🟡 AI: ${s}/10`; }
+  else if (s > 0)  { scl = 'low';  slabel = `⚠️ AI: ${s}/10`; }
+  lttScore.innerHTML = `<span class="ltt-score-badge ${scl}">${slabel}</span>`;
+
+  lttComment.textContent = data.ai_comment || '';
+  lttComment.style.display = data.ai_comment ? '' : 'none';
+
+  lttLink.href = data.url || '#';
+
+  // Image
+  lttImg.classList.remove('loaded');
+  lttPh.classList.remove('hidden');
+
+  const lid = data.id;
+  if (!lid) return;
+
+  if (_imgCache[lid] !== undefined) {
+    _applyImage(_imgCache[lid]);
+    return;
+  }
+
+  fetch(`/api/listings/${lid}/preview`)
+    .then(r => r.ok ? r.json() : null)
+    .then(d => {
+      const url = d?.image_url || null;
+      _imgCache[lid] = url;
+      if (_tooltipActive) _applyImage(url);
+    })
+    .catch(() => { _imgCache[lid] = null; });
+}
+
+function _applyImage(url) {
+  if (!url) return;
+  lttImg.src = url;
+  lttImg.onload = () => {
+    lttImg.classList.add('loaded');
+    lttPh.classList.add('hidden');
+  };
+  lttImg.onerror = () => { lttImg.src = ''; };
+}
+
+// Делегируем события через document — работает для динамически созданных строк
+document.addEventListener('mouseover', e => {
+  const link = e.target.closest('a.listing-title[data-listing]');
+  if (!link) return;
+
+  clearTimeout(_tooltipTimer);
+  _tooltipTimer = setTimeout(() => {
+    const data = JSON.parse(link.dataset.listing || '{}');
+    _fillTooltip(data);
+    _positionTooltip(e);
+    tooltip.classList.add('visible');
+    _tooltipActive = true;
+  }, 280);
+});
+
+document.addEventListener('mousemove', e => {
+  if (!tooltip.classList.contains('visible')) return;
+  if (!e.target.closest('a.listing-title[data-listing]') &&
+      !e.target.closest('#listing-tooltip')) {
+    clearTimeout(_tooltipTimer);
+    _tooltipTimer = setTimeout(() => {
+      tooltip.classList.remove('visible');
+      _tooltipActive = false;
+    }, 120);
+  } else if (e.target.closest('a.listing-title[data-listing]')) {
+    _positionTooltip(e);
+  }
+});
+
+document.addEventListener('mouseout', e => {
+  if (!e.target.closest('a.listing-title[data-listing]')) return;
+  clearTimeout(_tooltipTimer);
+  _tooltipTimer = setTimeout(() => {
+    if (!document.querySelector('#listing-tooltip:hover')) {
+      tooltip.classList.remove('visible');
+      _tooltipActive = false;
+    }
+  }, 150);
+});
+
+tooltip.addEventListener('mouseleave', () => {
+  tooltip.classList.remove('visible');
+  _tooltipActive = false;
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
