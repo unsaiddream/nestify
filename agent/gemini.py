@@ -64,16 +64,11 @@ async def analyze_listing(listing: dict, client: dict) -> ListingAnalysis:
 {_message_instruction(client)}"""
 
     try:
-        response = await model.generate_content_async(prompt)
+        import asyncio
+        response = await asyncio.to_thread(model.generate_content, prompt)
         return _parse_response(response.text)
     except Exception as e:
-        # При ошибке возвращаем нейтральный результат
-        return ListingAnalysis(
-            score=0,
-            approved=False,
-            comment=f"Ошибка анализа: {e}",
-            message="",
-        )
+        raise RuntimeError(f"Gemini API ошибка: {e}") from e
 
 
 def _message_instruction(client: dict) -> str:
