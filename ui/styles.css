@@ -36,11 +36,19 @@ html, body {
   height: 100%;
 }
 
-body {
-  background: var(--bg);
+/* Тёмная тема: единый градиент на html покрывает весь вьюпорт,
+   включая сайдбар — никаких стыков */
+html {
+  background: #080b12;
   background-image:
-    radial-gradient(ellipse 80% 50% at 20% 0%, rgba(79,142,247,0.06) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(62,207,142,0.04) 0%, transparent 50%);
+    radial-gradient(ellipse 130% 100% at -5% -5%,  rgba(40,80,200,0.45) 0%, transparent 60%),
+    radial-gradient(ellipse 110% 90%  at 105% 105%, rgba(20,140,110,0.35) 0%, transparent 60%),
+    radial-gradient(ellipse 80%  70%  at 50% 50%,  rgba(60,50,130,0.2)  0%, transparent 60%);
+  min-height: 100vh;
+}
+
+body {
+  background: transparent; /* html-фон просвечивает сквозь body */
   color: var(--text);
   font-family: var(--font);
   font-size: 14px;
@@ -295,7 +303,7 @@ body {
 
 /* ── Сайдбар ── */
 .sidebar {
-  background: rgba(8,11,18,0.8);
+  background: rgba(8,11,18,0.35); /* прозрачный — html-градиент просвечивает */
   backdrop-filter: var(--blur);
   border-right: 1px solid var(--glass-border);
   padding: 20px 12px;
@@ -943,37 +951,34 @@ tbody td {
   --radius-sm:    12px;
 }
 
-/* ФУНДАМЕНТ: цветной iOS-wallpaper фон с блобами.
-   Блобы большие и сильно перекрываются — никаких стыков.
-   Именно через него стекло будет "просвечивать". */
-[data-theme="light"] body {
-  /* Базовый нейтральный цвет, который мы никогда не должны видеть */
+/* ФУНДАМЕНТ: градиент на html — покрывает весь вьюпорт единым фоном.
+   Сайдбар и контент — прозрачные, через них виден один и тот же фон. */
+html[data-theme="light"] {
   background-color: #c0d8f0;
   background-image:
-    /* Огромный голубой блоб — весь верх-лево */
     radial-gradient(ellipse 140% 110% at -10% -5%,
       rgba(90,165,255,0.65) 0%, transparent 65%),
-    /* Бирюзовый — весь верх-право */
     radial-gradient(ellipse 120% 100% at 110% -5%,
       rgba(60,205,195,0.55) 0%, transparent 65%),
-    /* Лавандовый — центр */
     radial-gradient(ellipse 110% 90% at 50% 50%,
       rgba(170,145,255,0.35) 0%, transparent 65%),
-    /* Персиковый — низ-право */
     radial-gradient(ellipse 100% 90% at 110% 110%,
       rgba(255,180,120,0.4) 0%, transparent 65%),
-    /* Мятный — низ-лево */
     radial-gradient(ellipse 100% 85% at -10% 110%,
       rgba(70,210,155,0.38) 0%, transparent 65%);
 }
 
-/* Сайдбар — матовое стекло */
+[data-theme="light"] body {
+  background: transparent; /* html-фон просвечивает везде */
+}
+
+/* Сайдбар — прозрачное стекло над общим html-фоном */
 [data-theme="light"] .sidebar {
-  background: rgba(255,255,255,0.52) !important;
+  background: rgba(255,255,255,0.28) !important;
   backdrop-filter: var(--blur);
   -webkit-backdrop-filter: var(--blur);
-  border-right: 1px solid rgba(255,255,255,0.7);
-  box-shadow: 2px 0 24px rgba(31,38,135,0.08);
+  border-right: 1px solid rgba(255,255,255,0.5);
+  box-shadow: 2px 0 24px rgba(31,38,135,0.06);
 }
 
 /* Основной контент — слегка подсвечиваем фон */
@@ -994,75 +999,75 @@ tbody td {
 
 /* Стат-карточки */
 [data-theme="light"] .stat-card {
-  background: rgba(255,255,255,0.28);
-  border: 1px solid rgba(255,255,255,0.55);
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.45);
   box-shadow: var(--neo-out);
 }
 
 [data-theme="light"] .stat-card:hover {
-  background: rgba(255,255,255,0.38);
-  border-color: rgba(255,255,255,0.7);
+  background: rgba(255,255,255,0.28);
+  border-color: rgba(255,255,255,0.6);
 }
 
 /* Карточки (onboarding, settings) */
 [data-theme="light"] .card {
-  background: rgba(255,255,255,0.42);
-  border: 1px solid rgba(255,255,255,0.62);
+  background: rgba(255,255,255,0.32);
+  border: 1px solid rgba(255,255,255,0.55);
   box-shadow: var(--neo-out);
 }
 
 /* Форма добавления клиента */
 [data-theme="light"] .add-client-form {
-  background: rgba(255,255,255,0.28);
-  border: 1px solid rgba(255,255,255,0.52);
+  background: rgba(255,255,255,0.18);
+  border: 1px solid rgba(255,255,255,0.42);
   box-shadow: var(--neo-out);
 }
 
 /* Карточки клиентов */
 [data-theme="light"] .client-card {
-  background: rgba(255,255,255,0.26);
-  border: 1px solid rgba(255,255,255,0.5);
+  background: rgba(255,255,255,0.16);
+  border: 1px solid rgba(255,255,255,0.4);
   box-shadow: var(--neo-out);
 }
 
 [data-theme="light"] .client-card:hover {
-  background: rgba(255,255,255,0.36);
-  border-color: rgba(255,255,255,0.68);
+  background: rgba(255,255,255,0.26);
+  border-color: rgba(255,255,255,0.58);
   box-shadow: var(--neo-out), 0 0 20px rgba(0,122,255,0.1);
 }
 
 /* Строки объявлений — очень прозрачные, фон виден насквозь */
 [data-theme="light"] .listing-row {
-  background: rgba(255,255,255,0.22);
-  border: 1px solid rgba(255,255,255,0.48);
-  box-shadow: 0 2px 10px rgba(31,38,135,0.06),
-              inset 0 1px 0 rgba(255,255,255,0.75);
+  background: rgba(255,255,255,0.14);
+  border: 1px solid rgba(255,255,255,0.38);
+  box-shadow: 0 2px 10px rgba(31,38,135,0.04),
+              inset 0 1px 0 rgba(255,255,255,0.65);
 }
 
 [data-theme="light"] .listing-row:hover {
-  background: rgba(255,255,255,0.35);
-  border-color: rgba(255,255,255,0.65);
+  background: rgba(255,255,255,0.24);
+  border-color: rgba(255,255,255,0.55);
 }
 
 /* Таблица (лог агента) */
 [data-theme="light"] .table-wrap {
-  background: rgba(255,255,255,0.22);
-  border: 1px solid rgba(255,255,255,0.48);
+  background: rgba(255,255,255,0.14);
+  border: 1px solid rgba(255,255,255,0.38);
   box-shadow: var(--neo-out);
 }
 
 [data-theme="light"] thead th {
-  background: rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.12);
   color: var(--text-muted);
-  border-bottom: 1px solid rgba(255,255,255,0.38);
+  border-bottom: 1px solid rgba(255,255,255,0.28);
 }
 
 [data-theme="light"] tbody tr {
-  border-bottom-color: rgba(255,255,255,0.22);
+  border-bottom-color: rgba(255,255,255,0.16);
 }
 
 [data-theme="light"] tbody tr:hover {
-  background: rgba(255,255,255,0.15);
+  background: rgba(255,255,255,0.1);
 }
 
 /* Поля ввода */
