@@ -13,19 +13,18 @@ router = APIRouter(prefix="/listings", tags=["listings"])
 
 @router.get("/")
 async def get_listings(client_id: int | None = None, limit: int = 50):
-    """Возвращает список объявлений из БД."""
     async with aiosqlite.connect(DB_PATH) as db:
         db.row_factory = aiosqlite.Row
+        base = """
+            SELECT l.*, c.name as client_name, c.emoji as client_emoji
+            FROM listings l
+            LEFT JOIN clients c ON c.id = l.client_id
+        """
         if client_id:
-            async with db.execute(
-                "SELECT * FROM listings WHERE client_id = ? ORDER BY found_at DESC LIMIT ?",
-                (client_id, limit),
-            ) as cur:
+            async with db.execute(base + " WHERE l.client_id = ? ORDER BY l.found_at DESC LIMIT ?", (client_id, limit)) as cur:
                 rows = await cur.fetchall()
         else:
-            async with db.execute(
-                "SELECT * FROM listings ORDER BY found_at DESC LIMIT ?", (limit,)
-            ) as cur:
+            async with db.execute(base + " ORDER BY l.found_at DESC LIMIT ?", (limit,)) as cur:
                 rows = await cur.fetchall()
     return [dict(r) for r in rows]
 
@@ -41,6 +40,7 @@ class ClientRequest(BaseModel):
     deal_type: str = "buy"
     area_polygon: str | None = None       # "lat1,lon1,lat2,lon2,..." координаты полигона
     message_template: str | None = None   # шаблон сообщения продавцу
+    emoji: str = '🏠'
 
 
 @router.get("/clients")
@@ -59,11 +59,11 @@ async def create_client(body: ClientRequest):
     async with aiosqlite.connect(DB_PATH) as db:
         cur = await db.execute(
             """INSERT INTO clients
-               (name, district, budget_min, budget_max, area_min, area_max, rooms, deal_type, area_polygon, message_template)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               (name, district, budget_min, budget_max, area_min, area_max, rooms, deal_type, area_polygon, message_template, emoji)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (body.name, body.district, body.budget_min, body.budget_max,
              body.area_min, body.area_max, body.rooms, body.deal_type,
-             body.area_polygon, body.message_template),
+             body.area_polygon, body.message_template, body.emoji),
         )
         await db.commit()
         return {"id": cur.lastrowid, "name": body.name}
