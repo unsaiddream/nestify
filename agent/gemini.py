@@ -20,7 +20,7 @@ class ListingAnalysis:
     message: str        # готовое сообщение продавцу (если approved)
 
 
-DEFAULT_MODEL = "gemini-2.0-flash"
+DEFAULT_MODEL = "gemini-2.0-flash-exp"
 
 
 async def _get_model() -> genai.GenerativeModel:
