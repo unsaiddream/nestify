@@ -155,13 +155,19 @@ async def debug_selectors():
             if body:
                 html_snippet = (await body.inner_html())[:3000]
 
+            # HTML первой карточки .a-card для анализа структуры
+            first_card_html = ""
+            first_card = await page.query_selector(".a-card")
+            if first_card:
+                first_card_html = await first_card.inner_html()
+
             title = await page.title()
             return {
                 "status": "ok",
                 "url": page.url,
                 "title": title,
                 "selectors_found": found,
-                "html_snippet": html_snippet,
+                "first_card_html": first_card_html[:3000],
             }
         finally:
             await page.close()
