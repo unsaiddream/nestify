@@ -3,6 +3,8 @@
 """
 
 import asyncio
+import re
+import urllib.request
 
 import aiosqlite
 from fastapi import APIRouter, HTTPException
@@ -11,8 +13,40 @@ from pydantic import BaseModel
 from database.db import DB_PATH
 
 _preview_cache: dict[int, str | None] = {}  # listing_id → image_url | None
-# Семафор: не более 2 одновременных Playwright-навигаций для thumbnail
-_fetch_sem = asyncio.Semaphore(2)
+_fetch_pending: set[int] = set()            # listing_ids с активным фетчем (без дублей)
+_fetch_sem = asyncio.Semaphore(4)           # не более 4 параллельных HTTP-запросов
+
+# Заголовки как у обычного браузера — обходят базовую защиту от ботов
+_HTTP_HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/124.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+    "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
+    "Referer": "https://krisha.kz/",
+}
+# og:image — атрибуты могут идти в любом порядке
+_OG_RE = re.compile(
+    r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\'](https?://[^"\'>\s]+)["\']'
+    r'|<meta[^>]+content=["\'](https?://[^"\'>\s]+)["\'][^>]+property=["\']og:image["\']',
+    re.I,
+)
+
+
+def _fetch_og_sync(url: str) -> str | None:
+    """Синхронный HTTP-запрос за og:image. Запускается в thread pool."""
+    try:
+        req = urllib.request.Request(url, headers=_HTTP_HEADERS)
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            html = resp.read(60_000).decode("utf-8", errors="ignore")
+        m = _OG_RE.search(html)
+        if m:
+            return m.group(1) or m.group(2)
+    except Exception:
+        pass
+    return None
 
 router = APIRouter(prefix="/listings", tags=["listings"])
 
@@ -148,48 +182,26 @@ async def get_listing_preview(listing_id: int):
         _preview_cache[listing_id] = None
         return {"image_url": None}
 
-    # Запускаем фоновый фетч через Playwright (реальный браузер с куками krisha.kz).
-    # Отвечаем клиенту сразу null — картинка появится при следующем ховере из кэша.
-    asyncio.create_task(_fetch_thumbnail_bg(listing_id, listing_url))
+    # Запускаем фоновый HTTP-фетч (без Playwright — og:image есть в HTML сразу).
+    # Дедупликация: если уже идёт фетч для этого listing_id — не создаём ещё один.
+    if listing_id not in _fetch_pending:
+        _fetch_pending.add(listing_id)
+        asyncio.create_task(_fetch_thumbnail_bg(listing_id, listing_url))
     return {"image_url": None}
 
 
 async def _fetch_thumbnail_bg(listing_id: int, listing_url: str) -> None:
-    """Фоновая задача: открывает страницу объявления через Playwright,
-    извлекает первое фото, сохраняет в кэш и в БД."""
-    # Если уже в кэше — не делаем ничего
-    if listing_id in _preview_cache and _preview_cache[listing_id] is not None:
-        return
-
+    """Фоновая задача: HTTP-запрос за og:image страницы объявления.
+    Не использует Playwright — og:image рендерится на сервере (SEO-тег)."""
     image_url = None
     async with _fetch_sem:
         try:
-            from agent.browser import get_context
-            ctx = await get_context()
-            page = await ctx.new_page()
-            try:
-                await page.goto(listing_url, wait_until="domcontentloaded", timeout=12_000)
-                image_url = await page.evaluate("""() => {
-                    // og:image — самый надёжный вариант (SEO-тег, всегда в HTML)
-                    const og = document.querySelector('meta[property="og:image"]');
-                    if (og?.content?.startsWith('http')) return og.content;
-                    // Фото в галерее объявления
-                    for (const sel of [
-                        '.gallery__photo img', '.offer-gallery img',
-                        '.a-card__photo-img', 'img[src*="img.krisha.kz"]',
-                        'img[data-src*="img.krisha.kz"]'
-                    ]) {
-                        const el = document.querySelector(sel);
-                        const src = el?.src || el?.dataset?.src;
-                        if (src?.startsWith('http')) return src;
-                    }
-                    return null;
-                }""")
-            finally:
-                await page.close()
+            # asyncio.to_thread — не блокируем event loop синхронным urllib
+            image_url = await asyncio.to_thread(_fetch_og_sync, listing_url)
         except Exception:
             pass
 
+    _fetch_pending.discard(listing_id)
     _preview_cache[listing_id] = image_url
     if image_url:
         try:
