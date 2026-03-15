@@ -614,6 +614,34 @@ document.getElementById('btn-open-browser').addEventListener('click', async () =
 
 // ── Map ───────────────────────────────────────────────────────────────────────
 
+const CITY_CENTERS = {
+  almaty:    { center: [43.2220, 76.8512], zoom: 12 },
+  astana:    { center: [51.1694, 71.4491], zoom: 11 },
+  shymkent:  { center: [42.3417, 69.5901], zoom: 12 },
+  aktobe:    { center: [50.2839, 57.1670], zoom: 12 },
+  atyrau:    { center: [47.0945, 51.9236], zoom: 12 },
+  pavlodar:  { center: [52.2873, 76.9674], zoom: 12 },
+  karaganda: { center: [49.8028, 73.1025], zoom: 12 },
+  kostanay:  { center: [53.2141, 63.6244], zoom: 12 },
+  oral:      { center: [51.2333, 51.3667], zoom: 12 },
+  semey:     { center: [50.4111, 80.2275], zoom: 12 },
+};
+
+function _detectCity(district) {
+  const d = (district || '').toLowerCase();
+  if (d.includes('алмат') || d.includes('almaty'))                         return 'almaty';
+  if (d.includes('астан') || d.includes('astana') || d.includes('нур-султан')) return 'astana';
+  if (d.includes('шымкент') || d.includes('shymkent'))                    return 'shymkent';
+  if (d.includes('актобе') || d.includes('aktobe'))                       return 'aktobe';
+  if (d.includes('атырау') || d.includes('atyrau'))                       return 'atyrau';
+  if (d.includes('павлодар') || d.includes('pavlodar'))                   return 'pavlodar';
+  if (d.includes('қарағанды') || d.includes('карагандa') || d.includes('karaganda')) return 'karaganda';
+  if (d.includes('қостанай') || d.includes('костанай') || d.includes('kostanay'))    return 'kostanay';
+  if (d.includes('орал') || d.includes('уральск') || d.includes('oral')) return 'oral';
+  if (d.includes('семей') || d.includes('семипалатинск') || d.includes('semey')) return 'semey';
+  return 'astana'; // по умолчанию
+}
+
 let _map = null, _drawingMode = false, _polygonPoints = [], _polyline = null, _polygon = null;
 
 async function initMap() {
@@ -622,10 +650,17 @@ async function initMap() {
     _clientsCache = clients;
     const sel = document.getElementById('map-client-select');
     sel.innerHTML = '<option value="">— выберите клиента —</option>' +
-      clients.map(c => `<option value="${c.id}" data-polygon="${c.area_polygon || ''}">${c.emoji || '🏠'} ${c.name}</option>`).join('');
+      clients.map(c => `<option value="${c.id}" data-polygon="${c.area_polygon || ''}" data-district="${c.district || ''}">${c.emoji || '🏠'} ${c.name}</option>`).join('');
     sel.onchange = () => {
       const opt = sel.options[sel.selectedIndex];
-      if (opt.dataset.polygon) _loadExistingPolygon(opt.dataset.polygon);
+      if (opt.dataset.polygon) {
+        _loadExistingPolygon(opt.dataset.polygon);
+      } else {
+        // Нет сохранённой области — перелетаем на город клиента
+        const cityKey = _detectCity(opt.dataset.district);
+        const city = CITY_CENTERS[cityKey] || CITY_CENTERS.astana;
+        if (_map) _map.flyTo(city.center, city.zoom, { duration: 1 });
+      }
     };
   } catch (_) {}
 
