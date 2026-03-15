@@ -1,0 +1,878 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Nestify — Demo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+
+:root{
+  --bg:#080b12;
+  --glass:rgba(255,255,255,0.04);
+  --glass-border:rgba(255,255,255,0.09);
+  --accent:#4f8ef7;
+  --accent-glow:rgba(79,142,247,0.35);
+  --success:#3ecf8e;
+  --success-glow:rgba(62,207,142,0.3);
+  --warning:#f7c948;
+  --danger:#f76f6f;
+  --text:#e8eaf2;
+  --text-muted:#6b7492;
+  --text-dim:#9ba3c0;
+}
+
+html,body{
+  height:100%;
+  background:#080b12;
+  font-family:'Inter',system-ui,sans-serif;
+  color:var(--text);
+  overflow:hidden;
+}
+
+/* ── Background gradient ── */
+.bg-gradient{
+  position:fixed;inset:0;
+  background:
+    radial-gradient(ellipse 130% 100% at -5% -5%, rgba(40,80,200,0.45) 0%, transparent 60%),
+    radial-gradient(ellipse 110% 90% at 105% 105%, rgba(20,140,110,0.35) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 70% at 50% 50%, rgba(60,50,130,0.2) 0%, transparent 60%);
+  pointer-events:none;
+  z-index:0;
+}
+
+/* ── Scenes ── */
+.scene{
+  position:fixed;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  z-index:10;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity 0.7s ease;
+}
+.scene.active{opacity:1;pointer-events:auto;}
+
+/* ── Progress bar ── */
+#progress-bar{
+  position:fixed;bottom:0;left:0;height:3px;
+  background:linear-gradient(90deg,var(--accent),var(--success));
+  z-index:999;
+  transition:width 0.1s linear;
+  box-shadow:0 0 12px var(--accent-glow);
+}
+
+/* ── Scene counter ── */
+#scene-dots{
+  position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  display:flex;gap:8px;z-index:999;
+}
+.dot{
+  width:7px;height:7px;border-radius:50%;
+  background:rgba(255,255,255,0.2);
+  transition:all 0.4s ease;
+}
+.dot.active{background:var(--accent);box-shadow:0 0 8px var(--accent-glow);transform:scale(1.3);}
+
+/* ── Skip button ── */
+#skip-btn{
+  position:fixed;top:20px;right:24px;z-index:999;
+  background:rgba(255,255,255,0.07);border:1px solid rgba(255,255,255,0.1);
+  color:var(--text-dim);font-size:13px;padding:7px 16px;border-radius:20px;
+  cursor:pointer;transition:all 0.2s;font-family:inherit;
+}
+#skip-btn:hover{background:rgba(255,255,255,0.12);color:var(--text);}
+
+/* ── Glass card ── */
+.card{
+  background:var(--glass);
+  backdrop-filter:blur(24px);
+  border:1px solid var(--glass-border);
+  border-radius:20px;
+  padding:40px;
+  box-shadow:0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+/* ── Logo ── */
+.logo-block{
+  display:flex;align-items:center;gap:14px;margin-bottom:28px;
+  animation:fadeInDown 0.6s ease both;
+}
+.logo-icon{
+  width:52px;height:52px;border-radius:14px;
+  background:linear-gradient(135deg,#1a3a8f,#0d6e52);
+  display:flex;align-items:center;justify-content:center;
+  font-size:24px;
+  box-shadow:0 4px 20px rgba(79,142,247,0.3);
+}
+.logo-name{font-size:26px;font-weight:700;letter-spacing:-0.5px;color:var(--text);}
+
+/* ══════════════════════════════════════════
+   SCENE 0 — INTRO SPLASH
+══════════════════════════════════════════ */
+.splash{text-align:center;}
+.splash-logo{
+  width:96px;height:96px;border-radius:24px;
+  background:linear-gradient(135deg,#1a3a8f,#0d6e52);
+  display:flex;align-items:center;justify-content:center;
+  font-size:44px;margin:0 auto 28px;
+  box-shadow:0 0 60px rgba(79,142,247,0.4), 0 0 120px rgba(20,140,110,0.2);
+  animation:logoPulse 2s ease infinite;
+}
+.splash-title{font-size:52px;font-weight:800;letter-spacing:-2px;margin-bottom:12px;
+  background:linear-gradient(135deg,#fff 30%,#4f8ef7 70%,#3ecf8e);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.splash-sub{font-size:18px;color:var(--text-dim);font-weight:400;margin-bottom:40px;}
+.splash-tags{display:flex;gap:12px;justify-content:center;flex-wrap:wrap;}
+.tag{
+  padding:7px 16px;border-radius:20px;font-size:13px;font-weight:500;
+  border:1px solid;animation:fadeInUp 0.5s ease both;
+}
+.tag-blue{background:rgba(79,142,247,0.12);border-color:rgba(79,142,247,0.3);color:#7aabff;}
+.tag-green{background:rgba(62,207,142,0.1);border-color:rgba(62,207,142,0.3);color:#5ee8aa;}
+.tag-purple{background:rgba(150,100,250,0.1);border-color:rgba(150,100,250,0.3);color:#c4a0ff;}
+
+@keyframes logoPulse{
+  0%,100%{box-shadow:0 0 40px rgba(79,142,247,0.4),0 0 80px rgba(20,140,110,0.2);}
+  50%{box-shadow:0 0 70px rgba(79,142,247,0.6),0 0 140px rgba(20,140,110,0.35);}
+}
+
+/* ══════════════════════════════════════════
+   SCENE 1 — ONBOARDING
+══════════════════════════════════════════ */
+.onboard-card{width:460px;text-align:center;}
+.onboard-card h1{font-size:28px;font-weight:700;margin-bottom:8px;}
+.onboard-card .sub{color:var(--text-dim);font-size:14px;line-height:1.7;margin-bottom:28px;}
+.field-label{font-size:12px;color:var(--text-dim);text-align:left;margin-bottom:6px;font-weight:500;letter-spacing:0.5px;text-transform:uppercase;}
+.fake-input{
+  background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);
+  border-radius:12px;padding:12px 16px;font-size:15px;color:var(--accent);
+  font-family:monospace;text-align:left;margin-bottom:16px;position:relative;
+  min-height:46px;letter-spacing:1px;
+}
+.cursor{
+  display:inline-block;width:2px;height:16px;background:var(--accent);
+  vertical-align:middle;margin-left:2px;animation:blink 0.8s step-end infinite;
+}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:0;}}
+.btn-primary-demo{
+  width:100%;padding:14px;border-radius:12px;font-size:15px;font-weight:600;
+  background:linear-gradient(135deg,var(--accent),#3a7de8);
+  border:none;color:#fff;cursor:pointer;
+  box-shadow:0 4px 20px rgba(79,142,247,0.3);
+  transition:transform 0.15s;
+}
+.steps{display:flex;gap:8px;justify-content:center;margin-bottom:28px;}
+.step{
+  width:32px;height:4px;border-radius:2px;
+  background:rgba(255,255,255,0.1);transition:background 0.4s;
+}
+.step.done{background:var(--success);}
+.step.active{background:var(--accent);}
+.check-anim{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:60px;height:60px;border-radius:50%;
+  background:rgba(62,207,142,0.15);border:2px solid var(--success);
+  font-size:26px;margin-bottom:16px;
+  animation:popIn 0.4s cubic-bezier(0.34,1.56,0.64,1) both;
+}
+@keyframes popIn{from{transform:scale(0);opacity:0;}to{transform:scale(1);opacity:1;}}
+
+/* ══════════════════════════════════════════
+   SCENE 2 — DASHBOARD OVERVIEW
+══════════════════════════════════════════ */
+.dashboard-frame{
+  width:min(900px,96vw);background:rgba(8,11,18,0.85);
+  border:1px solid var(--glass-border);border-radius:20px;
+  overflow:hidden;display:flex;height:580px;
+  box-shadow:0 24px 80px rgba(0,0,0,0.7);
+}
+.sidebar-demo{
+  width:200px;background:rgba(255,255,255,0.02);
+  border-right:1px solid var(--glass-border);padding:20px 12px;
+  display:flex;flex-direction:column;gap:4px;flex-shrink:0;
+}
+.sidebar-logo{display:flex;align-items:center;gap:10px;padding:8px;margin-bottom:16px;}
+.sidebar-logo-icon{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#1a3a8f,#0d6e52);display:flex;align-items:center;justify-content:center;font-size:15px;}
+.sidebar-logo-name{font-size:16px;font-weight:700;}
+.nav-demo{
+  display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;
+  font-size:13px;font-weight:500;color:var(--text-dim);cursor:pointer;
+  transition:all 0.2s;
+}
+.nav-demo.active{background:rgba(79,142,247,0.12);color:var(--accent);}
+.content-demo{flex:1;padding:28px;overflow:auto;display:flex;flex-direction:column;gap:20px;}
+.page-title{font-size:22px;font-weight:700;margin-bottom:4px;}
+
+/* Stats row */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;}
+.stat-card{
+  background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;
+  padding:16px;
+}
+.stat-val{font-size:28px;font-weight:700;line-height:1;}
+.stat-lbl{font-size:11px;color:var(--text-muted);margin-top:5px;font-weight:500;}
+.stat-blue{color:var(--accent);}
+.stat-green{color:var(--success);}
+.stat-yellow{color:var(--warning);}
+.stat-red{color:var(--danger);}
+
+/* Mini client cards */
+.clients-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.client-mini{
+  background:var(--glass);border:1px solid var(--glass-border);border-radius:12px;
+  padding:14px;display:flex;align-items:center;gap:12px;
+}
+.client-avatar{
+  width:38px;height:38px;border-radius:10px;display:flex;align-items:center;
+  justify-content:center;font-size:18px;flex-shrink:0;
+}
+.client-name{font-size:13px;font-weight:600;margin-bottom:3px;}
+.client-tags{display:flex;gap:4px;flex-wrap:wrap;}
+.mini-tag{
+  font-size:10px;padding:2px 7px;border-radius:20px;
+  background:rgba(79,142,247,0.12);color:#7aabff;border:1px solid rgba(79,142,247,0.2);
+}
+
+/* Agent status */
+.agent-status{
+  background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;padding:16px;
+}
+.agent-header{display:flex;align-items:center;justify-content:between;margin-bottom:12px;}
+.status-pill{
+  display:inline-flex;align-items:center;gap:6px;
+  padding:5px 12px;border-radius:20px;font-size:12px;font-weight:600;
+}
+.status-running{background:rgba(62,207,142,0.12);color:var(--success);border:1px solid rgba(62,207,142,0.25);}
+.status-dot{width:7px;height:7px;border-radius:50%;animation:pulse-dot 1.5s ease infinite;}
+.status-dot-green{background:var(--success);}
+@keyframes pulse-dot{0%,100%{opacity:1;transform:scale(1);}50%{opacity:0.5;transform:scale(0.8);}}
+
+/* Log stream */
+.log-stream{display:flex;flex-direction:column;gap:4px;max-height:120px;overflow:hidden;}
+.log-line{
+  font-size:11px;font-family:monospace;padding:4px 8px;border-radius:6px;
+  background:rgba(0,0,0,0.3);display:flex;gap:8px;align-items:center;
+  opacity:0;transform:translateY(6px);
+  transition:opacity 0.3s ease, transform 0.3s ease;
+}
+.log-line.show{opacity:1;transform:translateY(0);}
+.log-time{color:var(--text-muted);flex-shrink:0;}
+.log-text{color:var(--text-dim);}
+.log-ok{color:var(--success);}
+.log-info{color:var(--accent);}
+.log-warn{color:var(--warning);}
+
+/* ══════════════════════════════════════════
+   SCENE 3 — AGENT WORKING
+══════════════════════════════════════════ */
+.agent-frame{width:min(860px,96vw);}
+.agent-frame .page-title{margin-bottom:20px;}
+.listings-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.listing-card{
+  background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;
+  padding:16px;opacity:0;transform:translateY(12px);
+  transition:opacity 0.4s ease, transform 0.4s ease;
+}
+.listing-card.show{opacity:1;transform:translateY(0);}
+.listing-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;}
+.listing-price{font-size:18px;font-weight:700;color:var(--text);}
+.listing-badge{
+  font-size:10px;font-weight:600;padding:3px 9px;border-radius:20px;
+}
+.badge-new{background:rgba(79,142,247,0.15);color:#7aabff;border:1px solid rgba(79,142,247,0.25);}
+.badge-ok{background:rgba(62,207,142,0.12);color:var(--success);border:1px solid rgba(62,207,142,0.25);}
+.badge-skip{background:rgba(150,150,150,0.1);color:var(--text-muted);border:1px solid rgba(150,150,150,0.15);}
+.listing-addr{font-size:12px;color:var(--text-dim);margin-bottom:8px;}
+.listing-meta{display:flex;gap:6px;flex-wrap:wrap;}
+.meta-chip{
+  font-size:11px;padding:3px 8px;border-radius:6px;
+  background:rgba(255,255,255,0.05);color:var(--text-dim);
+}
+.gemini-verdict{
+  margin-top:10px;padding:8px 10px;border-radius:8px;font-size:11px;
+  background:rgba(79,142,247,0.07);border-left:2px solid var(--accent);
+  color:var(--text-dim);line-height:1.5;
+  opacity:0;transition:opacity 0.4s ease 0.3s;
+}
+.listing-card.show .gemini-verdict{opacity:1;}
+
+/* Typing dots for AI analysis */
+.thinking{display:inline-flex;gap:4px;align-items:center;}
+.dot-t{width:5px;height:5px;border-radius:50%;background:var(--accent);
+  animation:dotBounce 1.2s ease infinite;}
+.dot-t:nth-child(2){animation-delay:0.15s;}
+.dot-t:nth-child(3){animation-delay:0.3s;}
+@keyframes dotBounce{0%,80%,100%{transform:scale(0.6);opacity:0.4;}40%{transform:scale(1);opacity:1;}}
+
+/* ══════════════════════════════════════════
+   SCENE 4 — MESSAGE SENT
+══════════════════════════════════════════ */
+.msg-frame{width:min(860px,96vw);}
+.msg-row{
+  background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;
+  padding:16px;display:flex;gap:14px;align-items:flex-start;
+  opacity:0;transform:translateX(-16px);
+  transition:opacity 0.4s ease, transform 0.4s ease;
+}
+.msg-row.show{opacity:1;transform:translateX(0);}
+.msg-avatar{
+  width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#1a3a8f,#0d4e82);
+  display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;
+}
+.msg-body{}
+.msg-to{font-size:12px;color:var(--text-muted);margin-bottom:4px;}
+.msg-to span{color:var(--accent);}
+.msg-text{font-size:13px;color:var(--text-dim);line-height:1.6;margin-bottom:8px;}
+.msg-footer{display:flex;align-items:center;gap:8px;}
+.msg-time{font-size:11px;color:var(--text-muted);}
+.sent-badge{
+  font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;
+  background:rgba(62,207,142,0.12);color:var(--success);border:1px solid rgba(62,207,142,0.25);
+}
+
+/* ══════════════════════════════════════════
+   SCENE 5 — RESULTS / OUTRO
+══════════════════════════════════════════ */
+.results-card{width:min(560px,96vw);text-align:center;}
+.results-card h2{font-size:32px;font-weight:800;letter-spacing:-1px;margin-bottom:8px;
+  background:linear-gradient(135deg,#fff,#4f8ef7 60%,#3ecf8e);
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+}
+.results-card .sub{color:var(--text-dim);font-size:15px;margin-bottom:32px;}
+.result-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;margin-bottom:32px;}
+.rs{
+  background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;
+  padding:20px 12px;
+}
+.rs-num{font-size:36px;font-weight:800;line-height:1;}
+.rs-lbl{font-size:11px;color:var(--text-muted);margin-top:6px;font-weight:500;}
+.outro-tagline{
+  font-size:16px;color:var(--text-dim);line-height:1.7;
+  padding:20px;background:var(--glass);border:1px solid var(--glass-border);border-radius:14px;
+}
+.outro-tagline strong{color:var(--text);}
+
+/* ── Counter animation ── */
+.count-up{display:inline-block;}
+
+/* ── Common animations ── */
+@keyframes fadeInDown{from{opacity:0;transform:translateY(-20px);}to{opacity:1;transform:translateY(0);}}
+@keyframes fadeInUp{from{opacity:0;transform:translateY(20px);}to{opacity:1;transform:translateY(0);}}
+@keyframes fadeIn{from{opacity:0;}to{opacity:1;}}
+
+.anim-delay-1{animation-delay:0.1s;}
+.anim-delay-2{animation-delay:0.2s;}
+.anim-delay-3{animation-delay:0.3s;}
+.anim-delay-4{animation-delay:0.4s;}
+.anim-delay-5{animation-delay:0.5s;}
+
+/* ── Notification toast ── */
+.demo-toast{
+  position:fixed;top:24px;left:50%;transform:translateX(-50%) translateY(-80px);
+  background:rgba(13,16,24,0.95);border:1px solid var(--glass-border);
+  border-radius:14px;padding:12px 20px;font-size:13px;
+  display:flex;align-items:center;gap:10px;z-index:9999;
+  box-shadow:0 8px 32px rgba(0,0,0,0.5);
+  transition:transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+  white-space:nowrap;
+}
+.demo-toast.show{transform:translateX(-50%) translateY(0);}
+.toast-icon{font-size:18px;}
+
+/* ── Scan line effect ── */
+.scan-overlay{
+  position:fixed;inset:0;pointer-events:none;z-index:5;
+  background:repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.03) 2px, rgba(0,0,0,0.03) 4px);
+  opacity:0.5;
+}
+</style>
+</head>
+<body>
+
+<div class="bg-gradient"></div>
+<div class="scan-overlay"></div>
+
+<div id="progress-bar" style="width:0%"></div>
+
+<div id="scene-dots"></div>
+
+<button id="skip-btn" onclick="skipToEnd()">Пропустить →</button>
+
+<!-- Toast notification -->
+<div class="demo-toast" id="toast">
+  <span class="toast-icon" id="toast-icon">✓</span>
+  <span id="toast-text">Токен сохранён</span>
+</div>
+
+<!-- ══ SCENE 0: SPLASH ══ -->
+<div class="scene active" id="s0">
+  <div class="splash" style="text-align:center">
+    <div class="splash-logo">🏠</div>
+    <div class="splash-title">Nestify</div>
+    <div class="splash-sub">AI-агент для риелторов на Krisha.kz</div>
+    <div class="splash-tags">
+      <span class="tag tag-blue" style="animation-delay:.1s">🤖 Gemini AI</span>
+      <span class="tag tag-green" style="animation-delay:.2s">🌐 Playwright</span>
+      <span class="tag tag-purple" style="animation-delay:.3s">⚡ FastAPI</span>
+      <span class="tag tag-blue" style="animation-delay:.4s">🗺️ Krisha.kz</span>
+      <span class="tag tag-green" style="animation-delay:.5s">🔒 Локально</span>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SCENE 1: ONBOARDING — Token ══ -->
+<div class="scene" id="s1">
+  <div class="card onboard-card">
+    <div class="logo-block" style="justify-content:center;">
+      <div class="logo-icon">🏠</div>
+      <span class="logo-name">Nestify</span>
+    </div>
+    <div class="steps">
+      <div class="step active" id="step1"></div>
+      <div class="step" id="step2"></div>
+      <div class="step" id="step3"></div>
+    </div>
+    <h1>Добро пожаловать</h1>
+    <p class="sub">Введите Gemini API токен — он хранится только локально на вашем компьютере</p>
+    <div class="field-label">Gemini API Token</div>
+    <div class="fake-input" id="token-input-demo"><span id="token-text"></span><span class="cursor" id="cursor1"></span></div>
+    <button class="btn-primary-demo" id="btn-token" style="opacity:0.4;pointer-events:none">Открыть дашборд →</button>
+  </div>
+</div>
+
+<!-- ══ SCENE 1b: ONBOARDING — Login success ══ -->
+<div class="scene" id="s1b">
+  <div class="card onboard-card" style="text-align:center;">
+    <div class="logo-block" style="justify-content:center;">
+      <div class="logo-icon">🏠</div>
+      <span class="logo-name">Nestify</span>
+    </div>
+    <div class="steps" style="margin-bottom:28px;">
+      <div class="step done"></div>
+      <div class="step done"></div>
+      <div class="step active"></div>
+    </div>
+    <div class="check-anim" id="check-anim">✓</div>
+    <h1 style="font-size:22px;margin-bottom:8px;">Готово!</h1>
+    <p class="sub">Аккаунт Krisha.kz подключён.<br/>Переходим к дашборду...</p>
+    <div style="margin-top:16px;">
+      <div style="display:flex;align-items:center;gap:8px;background:rgba(62,207,142,0.08);border:1px solid rgba(62,207,142,0.2);border-radius:10px;padding:10px 14px;font-size:13px;">
+        <span>🌐</span>
+        <span style="color:var(--text-dim);">Сессия Krisha.kz <strong style="color:var(--success);">активна</strong></span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SCENE 2: DASHBOARD OVERVIEW ══ -->
+<div class="scene" id="s2">
+  <div class="dashboard-frame">
+    <!-- Sidebar -->
+    <div class="sidebar-demo">
+      <div class="sidebar-logo">
+        <div class="sidebar-logo-icon">🏠</div>
+        <span class="sidebar-logo-name">Nestify</span>
+      </div>
+      <div class="nav-demo active">📊 Обзор</div>
+      <div class="nav-demo">👥 Клиенты</div>
+      <div class="nav-demo">🏡 Объявления</div>
+      <div class="nav-demo">💬 Сообщения</div>
+      <div class="nav-demo">🗺️ Карта</div>
+      <div style="margin-top:auto;padding:12px;">
+        <div class="status-pill status-running" style="width:100%;justify-content:center;">
+          <span class="status-dot status-dot-green"></span>Агент активен
+        </div>
+      </div>
+    </div>
+    <!-- Content -->
+    <div class="content-demo">
+      <div class="page-title">📊 Обзор</div>
+      <!-- Stats -->
+      <div class="stats-row">
+        <div class="stat-card" style="animation:fadeInUp 0.4s ease 0.1s both">
+          <div class="stat-val stat-blue"><span class="count-up" data-target="3">0</span></div>
+          <div class="stat-lbl">Активных клиентов</div>
+        </div>
+        <div class="stat-card" style="animation:fadeInUp 0.4s ease 0.2s both">
+          <div class="stat-val stat-green"><span class="count-up" data-target="47">0</span></div>
+          <div class="stat-lbl">Найдено объявлений</div>
+        </div>
+        <div class="stat-card" style="animation:fadeInUp 0.4s ease 0.3s both">
+          <div class="stat-val stat-yellow"><span class="count-up" data-target="12">0</span></div>
+          <div class="stat-lbl">Одобрено AI</div>
+        </div>
+        <div class="stat-card" style="animation:fadeInUp 0.4s ease 0.4s both">
+          <div class="stat-val stat-green"><span class="count-up" data-target="9">0</span></div>
+          <div class="stat-lbl">Сообщений отправлено</div>
+        </div>
+      </div>
+      <!-- Clients -->
+      <div class="clients-row" style="animation:fadeInUp 0.4s ease 0.5s both">
+        <div class="client-mini">
+          <div class="client-avatar" style="background:linear-gradient(135deg,#1a3a8f,#2a5aa0)">👨</div>
+          <div>
+            <div class="client-name">Айдар Сейткали</div>
+            <div class="client-tags">
+              <span class="mini-tag">Алматы</span>
+              <span class="mini-tag">2 комн.</span>
+              <span class="mini-tag">до 35М ₸</span>
+            </div>
+          </div>
+        </div>
+        <div class="client-mini">
+          <div class="client-avatar" style="background:linear-gradient(135deg,#0d6e52,#1a8a68)">👩</div>
+          <div>
+            <div class="client-name">Динара Жанова</div>
+            <div class="client-tags">
+              <span class="mini-tag">Астана</span>
+              <span class="mini-tag">3 комн.</span>
+              <span class="mini-tag">Аренда</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Agent Log -->
+      <div class="agent-status" style="animation:fadeInUp 0.4s ease 0.6s both">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <span style="font-size:13px;font-weight:600;">Лог агента</span>
+          <span class="status-pill status-running" style="font-size:11px;">
+            <span class="status-dot status-dot-green"></span>Работает
+          </span>
+        </div>
+        <div class="log-stream" id="log-stream-2">
+          <div class="log-line" id="l0"><span class="log-time">14:23:01</span><span class="log-ok">✓</span><span class="log-text">Найдено 8 новых объявлений — Алматы, Бостандыкский р-н</span></div>
+          <div class="log-line" id="l1"><span class="log-time">14:23:04</span><span class="log-info">🤖</span><span class="log-text">Gemini анализирует: ул. Достык 89, 2 комн., 67м² — 32 500 000 ₸</span></div>
+          <div class="log-line" id="l2"><span class="log-time">14:23:07</span><span class="log-ok">✓</span><span class="log-text">Одобрено — цена адекватна, район подходит</span></div>
+          <div class="log-line" id="l3"><span class="log-time">14:23:09</span><span class="log-ok">💬</span><span class="log-text">Сообщение отправлено продавцу → ответ ожидается</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ SCENE 3: AGENT — LISTINGS ══ -->
+<div class="scene" id="s3">
+  <div class="card agent-frame" style="padding:28px;">
+    <div class="page-title" style="margin-bottom:6px;">🤖 Агент анализирует объявления</div>
+    <p style="color:var(--text-dim);font-size:13px;margin-bottom:20px;">Клиент: Айдар Сейткали · Алматы · 2 комн. · до 35М ₸</p>
+    <div class="listings-grid" id="listings-grid">
+
+      <div class="listing-card" id="lc0">
+        <div class="listing-header">
+          <div>
+            <div class="listing-price">32 500 000 ₸</div>
+            <div class="listing-addr">📍 ул. Достык 89, Бостандыкский р-н</div>
+          </div>
+          <span class="listing-badge badge-ok">✓ Одобрено</span>
+        </div>
+        <div class="listing-meta">
+          <span class="meta-chip">2 комн.</span>
+          <span class="meta-chip">67 м²</span>
+          <span class="meta-chip">14/16 эт.</span>
+          <span class="meta-chip">Новостройка</span>
+        </div>
+        <div class="gemini-verdict">🤖 Цена ниже рынка на ~8%. Район соответствует запросу. Рекомендую написать.</div>
+      </div>
+
+      <div class="listing-card" id="lc1">
+        <div class="listing-header">
+          <div>
+            <div class="listing-price">28 900 000 ₸</div>
+            <div class="listing-addr">📍 пр. Аль-Фараби 17, Медеуский р-н</div>
+          </div>
+          <span class="listing-badge badge-ok">✓ Одобрено</span>
+        </div>
+        <div class="listing-meta">
+          <span class="meta-chip">2 комн.</span>
+          <span class="meta-chip">58 м²</span>
+          <span class="meta-chip">7/9 эт.</span>
+          <span class="meta-chip">Вторичка</span>
+        </div>
+        <div class="gemini-verdict">🤖 Хорошее соотношение цена/метраж. Описание честное. Стоит писать.</div>
+      </div>
+
+      <div class="listing-card" id="lc2">
+        <div class="listing-header">
+          <div>
+            <div class="listing-price">41 200 000 ₸</div>
+            <div class="listing-addr">📍 ул. Назарбаева 200, Алмалинский р-н</div>
+          </div>
+          <span class="listing-badge badge-skip">— Пропуск</span>
+        </div>
+        <div class="listing-meta">
+          <span class="meta-chip">2 комн.</span>
+          <span class="meta-chip">71 м²</span>
+          <span class="meta-chip">2/12 эт.</span>
+          <span class="meta-chip">Вторичка</span>
+        </div>
+        <div class="gemini-verdict" style="border-color:var(--warning);background:rgba(247,201,72,0.05);">⚠️ Цена выше бюджета клиента (+18%). Пропускаем.</div>
+      </div>
+
+      <div class="listing-card" id="lc3">
+        <div class="listing-header">
+          <div>
+            <div class="listing-price">33 000 000 ₸</div>
+            <div class="listing-addr">📍 ул. Тимирязева 42, Бостандыкский р-н</div>
+          </div>
+          <span class="listing-badge badge-new" id="lc3-badge">
+            <span class="thinking"><span class="dot-t"></span><span class="dot-t"></span><span class="dot-t"></span></span>
+          </span>
+        </div>
+        <div class="listing-meta">
+          <span class="meta-chip">2 комн.</span>
+          <span class="meta-chip">63 м²</span>
+          <span class="meta-chip">5/10 эт.</span>
+          <span class="meta-chip">Новостройка</span>
+        </div>
+        <div class="gemini-verdict" id="lc3-verdict" style="opacity:0;">🤖 Анализирую планировку и цену...</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══ SCENE 4: MESSAGES ══ -->
+<div class="scene" id="s4">
+  <div class="card msg-frame" style="padding:28px;">
+    <div class="page-title" style="margin-bottom:6px;">💬 Отправленные сообщения</div>
+    <p style="color:var(--text-dim);font-size:13px;margin-bottom:20px;">Агент написал продавцам от имени риелтора</p>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+
+      <div class="msg-row" id="mr0">
+        <div class="msg-avatar">👨‍💼</div>
+        <div class="msg-body">
+          <div class="msg-to">Продавец: <span>ул. Достык 89</span> · 32 500 000 ₸</div>
+          <div class="msg-text">Здравствуйте! Меня заинтересовала ваша квартира. Моя клиентка рассматривает варианты в Бостандыкском районе. Можем ли мы договориться о просмотре? Когда вам удобно?</div>
+          <div class="msg-footer">
+            <span class="msg-time">14:23:09</span>
+            <span class="sent-badge">✓ Отправлено</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="msg-row" id="mr1">
+        <div class="msg-avatar">👨‍💼</div>
+        <div class="msg-body">
+          <div class="msg-to">Продавец: <span>пр. Аль-Фараби 17</span> · 28 900 000 ₸</div>
+          <div class="msg-text">Добрый день! Видел ваше объявление о продаже квартиры. Мой клиент ищет именно такой вариант в Медеуском районе. Актуально ли объявление? Готовы рассмотреть быстро.</div>
+          <div class="msg-footer">
+            <span class="msg-time">14:23:15</span>
+            <span class="sent-badge">✓ Отправлено</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="msg-row" id="mr2">
+        <div class="msg-avatar">👨‍💼</div>
+        <div class="msg-body">
+          <div class="msg-to">Продавец: <span>ул. Тимирязева 42</span> · 33 000 000 ₸</div>
+          <div class="msg-text">Здравствуйте! Интересует ваша квартира — хорошая планировка и цена. Работаю с покупателями, готовыми к сделке. Есть ли возможность посмотреть на этой неделе?</div>
+          <div class="msg-footer">
+            <span class="msg-time">14:23:22</span>
+            <span class="sent-badge">✓ Отправлено</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ══ SCENE 5: OUTRO ══ -->
+<div class="scene" id="s5">
+  <div class="card results-card" style="animation:fadeInUp 0.6s ease both;">
+    <div class="splash-logo" style="width:72px;height:72px;font-size:32px;border-radius:18px;margin-bottom:24px;">🏠</div>
+    <h2>Nestify работает<br/>пока вы занимаетесь клиентами</h2>
+    <p class="sub">Автоматизируй рутину. Фокусируйся на людях.</p>
+    <div class="result-stats">
+      <div class="rs">
+        <div class="rs-num stat-green"><span class="count-up" data-target="47">0</span></div>
+        <div class="rs-lbl">Объявлений<br/>просмотрено</div>
+      </div>
+      <div class="rs">
+        <div class="rs-num stat-blue"><span class="count-up" data-target="12">0</span></div>
+        <div class="rs-lbl">Одобрено<br/>AI</div>
+      </div>
+      <div class="rs">
+        <div class="rs-num stat-yellow"><span class="count-up" data-target="9">0</span></div>
+        <div class="rs-lbl">Сообщений<br/>отправлено</div>
+      </div>
+    </div>
+    <div class="outro-tagline">
+      Всё происходит <strong>локально</strong> на вашем компьютере.<br/>
+      <strong>Никаких облаков.</strong> Данные только ваши.
+    </div>
+    <div style="margin-top:20px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
+      <span class="tag tag-blue">⚡ FastAPI + Python</span>
+      <span class="tag tag-green">🎭 Playwright</span>
+      <span class="tag tag-purple">🤖 Gemini 2.0</span>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Scene management ──────────────────────────────────────────────────────────
+const SCENES = ['s0','s1','s1b','s2','s3','s4','s5'];
+const DURATIONS = [3200, 5500, 2500, 5000, 5500, 5500, 99999];
+let currentScene = 0, progressTimer = null, sceneTimer = null;
+
+const dots = document.getElementById('scene-dots');
+SCENES.forEach((_, i) => {
+  const d = document.createElement('div');
+  d.className = 'dot' + (i===0?' active':'');
+  d.onclick = () => goTo(i);
+  dots.appendChild(d);
+});
+
+function updateDots(i){
+  dots.querySelectorAll('.dot').forEach((d,idx) => d.classList.toggle('active', idx===i));
+}
+
+function goTo(idx){
+  clearTimeout(sceneTimer);
+  clearInterval(progressTimer);
+  document.getElementById(SCENES[currentScene]).classList.remove('active');
+  currentScene = idx;
+  const el = document.getElementById(SCENES[currentScene]);
+  el.classList.add('active');
+  updateDots(currentScene);
+  onSceneEnter(currentScene);
+  startProgress(DURATIONS[currentScene]);
+  if(currentScene < SCENES.length-1){
+    sceneTimer = setTimeout(() => goTo(currentScene+1), DURATIONS[currentScene]);
+  }
+}
+
+function startProgress(duration){
+  const bar = document.getElementById('progress-bar');
+  bar.style.transition = 'none';
+  bar.style.width = '0%';
+  requestAnimationFrame(() => {
+    bar.style.transition = `width ${duration}ms linear`;
+    bar.style.width = '100%';
+  });
+}
+
+function skipToEnd(){ goTo(SCENES.length-1); }
+
+// ── Typewriter ──────────────────────────────────────────────────────────────
+function typewrite(el, text, speed, cb){
+  let i = 0;
+  el.textContent = '';
+  const t = setInterval(() => {
+    el.textContent += text[i++];
+    if(i>=text.length){ clearInterval(t); if(cb) cb(); }
+  }, speed);
+}
+
+// ── Counter animation ───────────────────────────────────────────────────────
+function animateCounters(scope){
+  (scope||document).querySelectorAll('.count-up').forEach(el => {
+    const target = +el.dataset.target;
+    let n = 0, step = Math.max(1, Math.floor(target/30));
+    const t = setInterval(() => {
+      n = Math.min(n+step, target);
+      el.textContent = n;
+      if(n>=target) clearInterval(t);
+    }, 40);
+  });
+}
+
+// ── Toast ───────────────────────────────────────────────────────────────────
+function showToast(icon, text, color){
+  const t = document.getElementById('toast');
+  document.getElementById('toast-icon').textContent = icon;
+  document.getElementById('toast-text').textContent = text;
+  document.getElementById('toast-text').style.color = color || 'var(--text)';
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2500);
+}
+
+// ── Log stream animation ────────────────────────────────────────────────────
+function animateLogs(){
+  ['l0','l1','l2','l3'].forEach((id,i) => {
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if(el) el.classList.add('show');
+    }, i * 800);
+  });
+}
+
+// ── Listing cards animation ─────────────────────────────────────────────────
+function animateListings(){
+  ['lc0','lc1','lc2'].forEach((id,i) => {
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if(el) el.classList.add('show');
+    }, i * 500 + 200);
+  });
+  // 4th card with AI thinking
+  setTimeout(() => {
+    const lc3 = document.getElementById('lc3');
+    if(lc3){ lc3.classList.add('show'); }
+  }, 1800);
+  // Then resolve the 4th card
+  setTimeout(() => {
+    const badge = document.getElementById('lc3-badge');
+    const verdict = document.getElementById('lc3-verdict');
+    if(badge){ badge.innerHTML = '✓ Одобрено'; badge.className = 'listing-badge badge-ok'; }
+    if(verdict){ verdict.style.opacity = '1'; verdict.textContent = '🤖 Хорошая цена для района. Новостройка — ликвидно. Пишем!'; }
+  }, 3800);
+}
+
+// ── Message rows animation ──────────────────────────────────────────────────
+function animateMessages(){
+  ['mr0','mr1','mr2'].forEach((id,i) => {
+    setTimeout(() => {
+      const el = document.getElementById(id);
+      if(el) el.classList.add('show');
+    }, i * 700 + 300);
+  });
+}
+
+// ── Scene enter handlers ────────────────────────────────────────────────────
+function onSceneEnter(idx){
+  if(idx===1){
+    // Typewrite token
+    const el = document.getElementById('token-text');
+    const btn = document.getElementById('btn-token');
+    if(el) typewrite(el, 'AIzaSyD3x8kL...mPqR9wE', 60, () => {
+      if(btn){ btn.style.opacity='1'; btn.style.pointerEvents='auto'; }
+      setTimeout(() => showToast('✓','Токен сохранён', 'var(--success)'), 400);
+    });
+  }
+  if(idx===2){
+    // Check animation already has CSS
+  }
+  if(idx===3){
+    animateCounters();
+    setTimeout(animateLogs, 600);
+  }
+  if(idx===4){
+    animateListings();
+  }
+  if(idx===5){
+    animateMessages();
+    setTimeout(() => showToast('💬','3 сообщения отправлено', 'var(--success)'), 2000);
+  }
+  if(idx===6){
+    animateCounters(document.getElementById('s5'));
+  }
+}
+
+// ── Keyboard navigation ──────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if(e.key==='ArrowRight'||e.key===' ') goTo(Math.min(currentScene+1, SCENES.length-1));
+  if(e.key==='ArrowLeft') goTo(Math.max(currentScene-1, 0));
+});
+
+// ── Start ────────────────────────────────────────────────────────────────────
+onSceneEnter(0);
+startProgress(DURATIONS[0]);
+sceneTimer = setTimeout(() => goTo(1), DURATIONS[0]);
+</script>
+</body>
+</html>
