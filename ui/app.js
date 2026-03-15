@@ -207,18 +207,27 @@ async function loadListings() {
 
 async function loadAgentLog() {
   try {
-    const rows = await api('GET', '/api/agent/log?limit=20');
-    const tbody = document.getElementById('agent-log-body');
+    const rows = await api('GET', '/api/agent/log?limit=30');
+    const el = document.getElementById('agent-log-body');
     if (!rows.length) return;
-    const label = { search: '🔍 Поиск', analyze: '🤖 Анализ', search_error: '❌ Поиск', send_message: '💬 Сообщение', browser_open: '🌐 Браузер', browser_error: '⚠️ Браузер', agent_error: '❌ Агент', analyze_error: '⚠️ Gemini', message_error: '⚠️ Сообщение' };
-    tbody.innerHTML = rows.map(r => {
+    const iconMap = {
+      search: ['🔍', ''],     analyze: ['🤖', 'info'],
+      send_message: ['💬', 'ok'],  browser_open: ['🌐', 'info'],
+      search_error: ['✕', 'err'],  browser_error: ['✕', 'err'],
+      agent_error: ['✕', 'err'],   analyze_error: ['⚠', 'warn'],
+      message_error: ['⚠', 'warn'],
+    };
+    el.innerHTML = rows.map(r => {
       const time = new Date(r.created_at + 'Z').toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-      return `<tr>
-        <td style="color:var(--text-muted);white-space:nowrap;">${time}</td>
-        <td>${label[r.action] || r.action}</td>
-        <td style="color:var(--text-muted);">${r.details || ''}</td>
-      </tr>`;
+      const [icon, cls] = iconMap[r.action] || ['·', ''];
+      const text = r.details || r.action;
+      return `<div class="log-entry">
+        <span class="log-time">${time}</span>
+        <span class="log-icon">${icon}</span>
+        <span class="log-msg ${cls}">${text}</span>
+      </div>`;
     }).join('');
+    el.scrollTop = el.scrollHeight;
   } catch (_) {}
 }
 

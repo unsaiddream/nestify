@@ -6,7 +6,7 @@
   <title>Nestify</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/styles.css?v=3" />
+  <link rel="stylesheet" href="/static/styles.css?v=4" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
 <body>
@@ -102,14 +102,13 @@
           <div style="padding:32px;text-align:center;color:var(--text-muted);">Нет данных. Добавьте клиента и запустите агента.</div>
         </div>
 
-        <h3 style="font-size:13px;font-weight:600;margin:28px 0 12px;color:var(--text-muted);text-transform:uppercase;letter-spacing:.5px;">Лог агента</h3>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Время</th><th>Действие</th><th>Детали</th></tr></thead>
-            <tbody id="agent-log-body">
-              <tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:24px;">Агент ещё не запускался</td></tr>
-            </tbody>
-          </table>
+        <div class="log-panel">
+          <div class="log-panel-header">
+            <span class="log-panel-title">Лог агента</span>
+          </div>
+          <div id="agent-log-body" class="log-stream">
+            <div class="log-empty">Агент ещё не запускался</div>
+          </div>
         </div>
       </div>
 
@@ -309,6 +308,6 @@
 <div class="toast" id="toast"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="/static/app.js?v=3"></script>
+<script src="/static/app.js?v=4"></script>
 </body>
 </html>
