@@ -2,6 +2,7 @@
 Роуты для получения объявлений и клиентов из БД.
 """
 
+import asyncio
 import re
 
 import aiosqlite
@@ -10,7 +11,9 @@ from pydantic import BaseModel
 
 from database.db import DB_PATH
 
-_preview_cache: dict[int, str | None] = {}  # listing_id → image_url
+_preview_cache: dict[int, str | None] = {}  # listing_id → image_url | None
+# Семафор: не более 2 одновременных Playwright-навигаций для thumbnail
+_fetch_sem = asyncio.Semaphore(2)
 
 router = APIRouter(prefix="/listings", tags=["listings"])
 
@@ -143,44 +146,65 @@ async def get_listing_preview(listing_id: int):
         return {"image_url": thumbnail}
 
     if not listing_url:
+        _preview_cache[listing_id] = None
         return {"image_url": None}
 
-    # Используем Playwright-контекст агента для запроса — браузер уже залогинен,
-    # поэтому krisha.kz не блокирует и отдаёт нормальный HTML с og:image
+    # Запускаем фоновый фетч через Playwright (реальный браузер с куками krisha.kz).
+    # Отвечаем клиенту сразу null — картинка появится при следующем ховере из кэша.
+    asyncio.create_task(_fetch_thumbnail_bg(listing_id, listing_url))
+    return {"image_url": None}
+
+
+async def _fetch_thumbnail_bg(listing_id: int, listing_url: str) -> None:
+    """Фоновая задача: открывает страницу объявления через Playwright,
+    извлекает первое фото, сохраняет в кэш и в БД."""
+    # Если уже в кэше — не делаем ничего
+    if listing_id in _preview_cache and _preview_cache[listing_id] is not None:
+        return
+
     image_url = None
-    try:
-        from agent.browser import get_context
-        ctx = await get_context()
-        resp = await ctx.request.get(
-            listing_url,
-            headers={"Accept": "text/html,application/xhtml+xml,*/*"},
-            timeout=8_000,
-        )
-        if resp.ok:
-            html = await resp.text()
-            for pattern in [
-                r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)["\']',
-                r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
-                r'"image"\s*:\s*"(https://[^"]+\.(?:jpg|jpeg|png|webp)[^"]*)"',
-            ]:
-                m = re.search(pattern, html, re.IGNORECASE)
-                if m:
-                    img = m.group(1).strip()
-                    if img.startswith("http"):
-                        image_url = img
-                        # Сохраняем в БД чтобы не повторять запрос
-                        async with aiosqlite.connect(DB_PATH) as db:
-                            await db.execute(
-                                "UPDATE listings SET thumbnail = ? WHERE id = ?",
-                                (image_url, listing_id),
-                            )
-                            await db.commit()
-                        break
-    except Exception:
-        pass
+    async with _fetch_sem:
+        try:
+            from agent import browser as _br
+            # Используем уже запущенный контекст — не запускаем новый браузер
+            if _br._context is None:
+                return
+            ctx = _br._context
+            page = await ctx.new_page()
+            try:
+                await page.goto(listing_url, wait_until="domcontentloaded", timeout=12_000)
+                image_url = await page.evaluate("""() => {
+                    // og:image — самый надёжный вариант (SEO-тег, всегда в HTML)
+                    const og = document.querySelector('meta[property="og:image"]');
+                    if (og?.content?.startsWith('http')) return og.content;
+                    // Фото в галерее объявления
+                    for (const sel of [
+                        '.gallery__photo img', '.offer-gallery img',
+                        '.a-card__photo-img', 'img[src*="img.krisha.kz"]',
+                        'img[data-src*="img.krisha.kz"]'
+                    ]) {
+                        const el = document.querySelector(sel);
+                        const src = el?.src || el?.dataset?.src;
+                        if (src?.startsWith('http')) return src;
+                    }
+                    return null;
+                }""")
+            finally:
+                await page.close()
+        except Exception:
+            pass
 
     _preview_cache[listing_id] = image_url
-    return {"image_url": image_url}
+    if image_url:
+        try:
+            async with aiosqlite.connect(DB_PATH) as db:
+                await db.execute(
+                    "UPDATE listings SET thumbnail = ? WHERE id = ?",
+                    (image_url, listing_id),
+                )
+                await db.commit()
+        except Exception:
+            pass
 
 
 @router.get("/stats")

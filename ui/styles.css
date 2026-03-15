@@ -1266,11 +1266,13 @@ html[data-theme="light"] {
 /* ── Listing hover tooltip ───────────────────────────────────────────────── */
 .listing-tooltip {
   position: fixed;
+  top: 0;
+  left: 0;
   z-index: 9999;
   width: 300px;
-  background: rgba(12,15,24,0.82);
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
+  background: rgba(12,15,24,0.88);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
   border: 1px solid rgba(255,255,255,0.11);
   border-radius: 18px;
   box-shadow:
@@ -1280,15 +1282,22 @@ html[data-theme="light"] {
   overflow: hidden;
   pointer-events: none;
   opacity: 0;
-  transform: translateY(8px) scale(0.97);
-  transition: opacity 0.18s ease, transform 0.18s ease;
+  /* позиция — через CSS-переменные в transform: не вызывает layout reflow */
+  transform: translate(var(--tt-x,0px), var(--tt-y,0px)) translateY(8px) scale(0.97);
+  transition: opacity 0.15s ease, transform 0.15s ease;
   will-change: transform, opacity;
 }
 
 .listing-tooltip.visible {
   opacity: 1;
-  transform: translateY(0) scale(1);
+  transform: translate(var(--tt-x,0px), var(--tt-y,0px)) scale(1);
   pointer-events: auto;
+}
+
+/* Убираем transition только на движение, чтобы курсор не отставал */
+.listing-tooltip.no-transition {
+  transition: none !important;
+}
 }
 
 /* Image area */
