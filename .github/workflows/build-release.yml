@@ -1,6 +1,5 @@
 name: Build & Release
 
-# Запускается при создании тега версии (например: v0.1.0)
 on:
   push:
     tags:
@@ -11,7 +10,7 @@ permissions:
 
 jobs:
   # ─────────────────────────────────────────
-  # Windows → Nestify-Setup.exe (NSIS installer + Playwright/Chromium)
+  # Windows → Nestify-Setup.exe (NSIS)
   # ─────────────────────────────────────────
   build-windows:
     runs-on: windows-latest
@@ -24,41 +23,21 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Download Playwright Chromium
-        run: |
-          $env:PLAYWRIGHT_BROWSERS_PATH = "$PWD\playwright-browsers"
-          playwright install chromium
-        shell: pwsh
-
       - name: Build directory с PyInstaller
         run: pyinstaller nestify.spec --clean
-
-      - name: Copy Playwright browsers в dist
-        # Копируем после сборки — PyInstaller не трогает Chromium-бинарники
-        run: |
-          $internal = Get-ChildItem -Path "dist\Nestify" -Filter "_internal" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
-          if ($internal) {
-            $dest = "$($internal.FullName)\playwright-browsers"
-          } else {
-            $dest = "dist\Nestify\playwright-browsers"
-          }
-          Copy-Item -Recurse playwright-browsers $dest
-          Write-Host "Copied browsers to: $dest"
-        shell: pwsh
 
       - name: Install NSIS
         run: choco install nsis -y --no-progress
 
-      - name: Build Nestify-Setup.exe (NSIS)
+      - name: Build Nestify-Setup.exe
         run: |
-          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
-          & $makensis installer\nestify.nsi
+          & "C:\Program Files (x86)\NSIS\makensis.exe" installer\nestify.nsi
         shell: pwsh
 
       - name: Upload Windows installer
@@ -68,7 +47,7 @@ jobs:
           path: dist\Nestify-Setup.exe
 
   # ─────────────────────────────────────────
-  # macOS → Nestify.dmg (drag-to-Applications + Playwright/Chromium)
+  # macOS → Nestify.dmg
   # ─────────────────────────────────────────
   build-macos:
     runs-on: macos-latest
@@ -81,43 +60,17 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install Python dependencies
+      - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller Pillow
 
-      - name: Download Playwright Chromium
-        run: PLAYWRIGHT_BROWSERS_PATH=./playwright-browsers playwright install chromium
-
       - name: Build .app с PyInstaller
         run: pyinstaller nestify.spec --clean
 
-      - name: Copy Playwright browsers в .app bundle
-        # Копируем после сборки — находим _internal или Frameworks в зависимости от версии PyInstaller
-        run: |
-          INTERNAL=$(find dist/Nestify.app -name "_internal" -type d 2>/dev/null | head -1)
-          if [ -n "$INTERNAL" ]; then
-            DEST="$INTERNAL/playwright-browsers"
-          else
-            DEST="dist/Nestify.app/Contents/Frameworks/playwright-browsers"
-          fi
-          cp -r playwright-browsers "$DEST"
-          echo "Copied browsers to: $DEST"
-
-      - name: Sign .app (ad-hoc — без платного сертификата Apple)
-        run: |
-          # playwright-browsers содержит Chromium.app, ffmpeg, текстовые файлы —
-          # codesign не может обработать весь этот зоопарк.
-          # Решение: убрать playwright-browsers ДО подписи, подписать чистый .app,
-          # вернуть обратно. Подпись технически будет нарушена, но для ad-hoc +
-          # xattr -dr com.apple.quarantine этого достаточно.
-          PW_DEST=$(find dist/Nestify.app/Contents -name "playwright-browsers" -type d | head -1)
-          mv "$PW_DEST" /tmp/nestify-pw-browsers
-
-          codesign --force --deep --sign - dist/Nestify.app
-
-          mv /tmp/nestify-pw-browsers "$PW_DEST"
+      - name: Sign .app (ad-hoc)
+        run: codesign --force --deep --sign - dist/Nestify.app
 
       - name: Install create-dmg
         run: brew install create-dmg
@@ -144,7 +97,7 @@ jobs:
           path: dist/Nestify.dmg
 
   # ─────────────────────────────────────────
-  # GitHub Release с обоими файлами
+  # GitHub Release
   # ─────────────────────────────────────────
   release:
     needs: [build-windows, build-macos]
@@ -170,22 +123,20 @@ jobs:
             ## Nestify ${{ github.ref_name }}
 
             ### Скачать
-            | Платформа | Файл | Что внутри |
-            |-----------|------|-----------|
-            | 🪟 Windows | `Nestify-Setup.exe` | Installer — установит в Program Files, ярлык на рабочем столе |
-            | 🍎 macOS   | `Nestify.dmg` | Перетащи Nestify.app в Applications |
+            | Платформа | Файл |
+            |-----------|------|
+            | 🪟 Windows | `Nestify-Setup.exe` |
+            | 🍎 macOS   | `Nestify.dmg` |
 
-            > **Chromium уже включён** — дополнительно ничего устанавливать не нужно.
+            ### Установка
+            1. **Windows**: запусти `Nestify-Setup.exe`, следуй мастеру
+            2. **macOS**: открой `Nestify.dmg`, перетащи Nestify в Applications
+            3. При первом запуске приложение автоматически скачает Chromium (~150 MB)
+            4. Браузер откроется на `http://localhost:8000`
+            5. Введи Gemini API токен → войди в Krisha.kz → готово!
 
-            ### Первый запуск
-            1. **Windows**: запусти `Nestify-Setup.exe`, следуй мастеру установки
-            2. **macOS**: открой `Nestify.dmg`, перетащи Nestify в Applications, запусти
-            3. Браузер откроется автоматически на `http://localhost:8000`
-            4. Введи Gemini API токен → войди в Krisha.kz → готово!
-
-            > **macOS**: если появится «не удаётся открыть» — это Gatekeeper.
-            > Запусти в Терминале: `xattr -dr com.apple.quarantine /Applications/Nestify.app`
-            > Затем дважды кликни на иконку — откроется нормально.
+            > **macOS**: если появится «не удаётся открыть»:
+            > `xattr -dr com.apple.quarantine /Applications/Nestify.app`
           files: |
             artifacts/Nestify-Setup.exe
             artifacts/Nestify.dmg
