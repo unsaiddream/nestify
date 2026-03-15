@@ -63,6 +63,15 @@ async def serve_css():
     )
 
 
+@app.get("/demo")
+async def demo():
+    """Анимированный трейлер-демо."""
+    return FileResponse(
+        UI_DIR / "demo.html",
+        headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
+    )
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
