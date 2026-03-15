@@ -9,6 +9,7 @@
 Автоматически ищет объявления, анализирует их через Gemini AI и пишет сообщения продавцам — всё локально, без облаков.
 
 [![Demo](https://img.shields.io/badge/▶_Live_Demo-4f8ef7?style=for-the-badge&logoColor=white)](https://unsaiddream.github.io/nestify/)
+[![Local Demo](https://img.shields.io/badge/localhost:8000/demo-222?style=for-the-badge&logoColor=white)](http://localhost:8000/demo)
 [![Python](https://img.shields.io/badge/Python_3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com)
 [![Gemini](https://img.shields.io/badge/Gemini_AI-4285F4?style=for-the-badge&logo=google&logoColor=white)](https://aistudio.google.com)
