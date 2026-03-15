@@ -202,6 +202,23 @@ async def search_listings(client: dict, max_pages: int = 3) -> list[RawListing]:
         return await _search_list(url, max_pages)
 
 
+async def _force_lazy_images(page) -> None:
+    """Принудительно устанавливает src из data-src для всех lazy-load изображений."""
+    await page.evaluate("""() => {
+        document.querySelectorAll('img').forEach(img => {
+            const lazy = img.getAttribute('data-src')
+                || img.getAttribute('data-original')
+                || img.getAttribute('data-lazy')
+                || img.getAttribute('data-url')
+                || img.getAttribute('data-image');
+            if (lazy && lazy.startsWith('http') && (!img.src || img.src === window.location.href)) {
+                img.src = lazy;
+            }
+        });
+    }""")
+    await asyncio.sleep(0.4)
+
+
 async def _search_map(url: str) -> list[RawListing]:
     """Поиск через map URL Krisha — скрапим список в боковой панели."""
     results: list[RawListing] = []
@@ -220,6 +237,10 @@ async def _search_map(url: str) -> list[RawListing]:
             return results
 
         cards = await page.query_selector_all(".a-card")
+
+        # Принудительно подгружаем lazy-load картинки через JS
+        await _force_lazy_images(page)
+
         for card in cards:
             try:
                 listing = await _parse_card(card)
@@ -232,6 +253,7 @@ async def _search_map(url: str) -> list[RawListing]:
         if 0 < len(results) < 5:
             await page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             await asyncio.sleep(2)
+            await _force_lazy_images(page)
             cards = await page.query_selector_all(".a-card")
             results.clear()
             for card in cards:
@@ -267,6 +289,8 @@ async def _search_list(url: str, max_pages: int) -> list[RawListing]:
             cards = await page.query_selector_all(".a-card")
             if not cards:
                 break
+
+            await _force_lazy_images(page)
 
             for card in cards:
                 try:
@@ -404,26 +428,20 @@ async def _parse_card(card) -> RawListing | None:
     desc_el = await card.query_selector(".a-card__text-preview, .a-card__description")
     desc_text = (await desc_el.inner_text()).strip() if desc_el else None
 
-    # Первое фото объявления — перебираем несколько селекторов (lazy-load img)
-    thumbnail = None
-    for img_sel in [
-        "img.a-card__photo-img",
-        ".a-card__photos img",
-        ".a-card__image img",
-        ".a-card__gallery img",
-        "img[src*='krisha']",
-        "img[data-src*='krisha']",
-        "img[src*='img.']",
-    ]:
-        img_el = await card.query_selector(img_sel)
-        if not img_el:
-            continue
-        src = (await img_el.get_attribute("src") or
-               await img_el.get_attribute("data-src") or
-               await img_el.get_attribute("data-lazy") or "")
-        if src and src.startswith("http") and any(ext in src for ext in [".jpg", ".jpeg", ".png", ".webp"]):
-            thumbnail = src
-            break
+    # Первое фото — JS evaluate читает все lazy-load атрибуты сразу
+    thumbnail = await card.evaluate("""el => {
+        const img = el.querySelector('img');
+        if (!img) return null;
+        const src = img.src
+            || img.currentSrc
+            || img.getAttribute('data-src')
+            || img.getAttribute('data-original')
+            || img.getAttribute('data-lazy')
+            || img.getAttribute('data-url')
+            || img.getAttribute('data-image')
+            || (img.srcset ? img.srcset.split(/[,\\s]+/)[0] : null);
+        return (src && src.startsWith('http')) ? src : null;
+    }""")
 
     return RawListing(
         krisha_id=krisha_id,
