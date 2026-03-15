@@ -107,16 +107,17 @@ jobs:
 
       - name: Sign .app (ad-hoc — без платного сертификата Apple)
         run: |
-          # Удаляем .links — codesign не умеет обрабатывать hardlink-папки
-          find dist/Nestify.app -name ".links" -exec rm -rf {} + 2>/dev/null || true
+          # playwright-browsers содержит Chromium.app, ffmpeg, текстовые файлы —
+          # codesign не может обработать весь этот зоопарк.
+          # Решение: убрать playwright-browsers ДО подписи, подписать чистый .app,
+          # вернуть обратно. Подпись технически будет нарушена, но для ad-hoc +
+          # xattr -dr com.apple.quarantine этого достаточно.
+          PW_DEST=$(find dist/Nestify.app/Contents -name "playwright-browsers" -type d | head -1)
+          mv "$PW_DEST" /tmp/nestify-pw-browsers
 
-          # codesign --deep падает на вложенных .app (Chromium.app внутри playwright-browsers).
-          # Решение: сначала вручную подписать все вложенные .app (от глубоких к верхним),
-          # потом подписать основной bundle уже без --deep.
-          find dist/Nestify.app/Contents -name "*.app" | sort -r | while read nested; do
-            codesign --force --sign - "$nested" 2>/dev/null || true
-          done
-          codesign --force --sign - dist/Nestify.app
+          codesign --force --deep --sign - dist/Nestify.app
+
+          mv /tmp/nestify-pw-browsers "$PW_DEST"
 
       - name: Install create-dmg
         run: brew install create-dmg
