@@ -9,9 +9,9 @@ from pathlib import Path
 
 block_cipher = None
 
-# Playwright browsers — добавляем в bundle если папка уже скачана в CI
-_pw_dir = './playwright-browsers'
-_pw_datas = [(_pw_dir, 'playwright-browsers')] if Path(_pw_dir).exists() else []
+# Playwright browsers НЕ добавляем через PyInstaller datas —
+# PyInstaller пытается обработать Chromium как свой бинарник и падает.
+# Вместо этого CI копирует папку в bundle уже после сборки.
 
 a = Analysis(
     ['main.py'],
@@ -23,7 +23,7 @@ a = Analysis(
         ('api', 'api'),
         ('agent', 'agent'),
         ('database', 'database'),
-    ] + _pw_datas,
+    ],
     hiddenimports=[
         'uvicorn.logging',
         'uvicorn.loops',

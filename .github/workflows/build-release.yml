@@ -30,21 +30,36 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Download Playwright Chromium (bundled в installer)
+      - name: Download Playwright Chromium
         run: |
-          $env:PLAYWRIGHT_BROWSERS_PATH = ".\playwright-browsers"
+          $env:PLAYWRIGHT_BROWSERS_PATH = "$PWD\playwright-browsers"
           playwright install chromium
         shell: pwsh
 
       - name: Build directory с PyInstaller
         run: pyinstaller nestify.spec --clean
 
+      - name: Copy Playwright browsers в dist
+        # Копируем после сборки — PyInstaller не трогает Chromium-бинарники
+        run: |
+          $internal = Get-ChildItem -Path "dist\Nestify" -Filter "_internal" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1
+          if ($internal) {
+            $dest = "$($internal.FullName)\playwright-browsers"
+          } else {
+            $dest = "dist\Nestify\playwright-browsers"
+          }
+          Copy-Item -Recurse playwright-browsers $dest
+          Write-Host "Copied browsers to: $dest"
+        shell: pwsh
+
       - name: Install NSIS
         run: choco install nsis -y --no-progress
 
       - name: Build Nestify-Setup.exe (NSIS)
-        run: makensis installer\nestify.nsi
-        shell: cmd
+        run: |
+          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
+          & $makensis installer\nestify.nsi
+        shell: pwsh
 
       - name: Upload Windows installer
         uses: actions/upload-artifact@v4
@@ -72,12 +87,23 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller Pillow
 
-      - name: Download Playwright Chromium (bundled в .app)
-        run: |
-          PLAYWRIGHT_BROWSERS_PATH=./playwright-browsers playwright install chromium
+      - name: Download Playwright Chromium
+        run: PLAYWRIGHT_BROWSERS_PATH=./playwright-browsers playwright install chromium
 
       - name: Build .app с PyInstaller
         run: pyinstaller nestify.spec --clean
+
+      - name: Copy Playwright browsers в .app bundle
+        # Копируем после сборки — находим _internal или Frameworks в зависимости от версии PyInstaller
+        run: |
+          INTERNAL=$(find dist/Nestify.app -name "_internal" -type d 2>/dev/null | head -1)
+          if [ -n "$INTERNAL" ]; then
+            DEST="$INTERNAL/playwright-browsers"
+          else
+            DEST="dist/Nestify.app/Contents/Frameworks/playwright-browsers"
+          fi
+          cp -r playwright-browsers "$DEST"
+          echo "Copied browsers to: $DEST"
 
       - name: Sign .app (ad-hoc — без платного сертификата Apple)
         run: codesign --force --deep --sign - dist/Nestify.app
