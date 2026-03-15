@@ -181,6 +181,51 @@ html,body{
 @keyframes popIn{from{transform:scale(0);opacity:0;}to{transform:scale(1);opacity:1;}}
 
 /* ══════════════════════════════════════════
+   SCENE 1c — CHROMIUM DOWNLOAD
+══════════════════════════════════════════ */
+.chromium-card{width:460px;}
+.chromium-card h1{font-size:22px;font-weight:700;margin-bottom:8px;}
+.dl-bar-wrap{background:rgba(0,0,0,0.3);border-radius:8px;height:8px;overflow:hidden;margin:16px 0 6px;}
+.dl-bar{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--success));border-radius:8px;transition:width 0.1s linear;}
+.dl-label{font-size:12px;color:var(--text-muted);display:flex;justify-content:space-between;}
+.dl-status{font-size:13px;color:var(--text-dim);margin-top:14px;min-height:20px;}
+.chromium-icon{width:56px;height:56px;border-radius:14px;background:rgba(79,142,247,0.12);border:1px solid rgba(79,142,247,0.25);display:flex;align-items:center;justify-content:center;font-size:26px;margin-bottom:16px;}
+
+/* ══════════════════════════════════════════
+   SCENE 1d — OPEN BROWSER / LOGIN
+══════════════════════════════════════════ */
+.login-card{width:460px;text-align:center;}
+.login-card h1{font-size:22px;font-weight:700;margin-bottom:8px;}
+.login-steps{display:flex;flex-direction:column;gap:10px;margin:20px 0;}
+.login-step{
+  display:flex;align-items:center;gap:14px;
+  background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);
+  border-radius:12px;padding:14px 16px;text-align:left;
+}
+.login-step-num{
+  width:28px;height:28px;border-radius:50%;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;
+}
+.step-num-done{background:rgba(62,207,142,0.15);color:var(--success);border:1px solid rgba(62,207,142,0.3);}
+.step-num-active{background:rgba(79,142,247,0.15);color:var(--accent);border:1px solid rgba(79,142,247,0.3);}
+.step-num-wait{background:rgba(255,255,255,0.05);color:var(--text-muted);border:1px solid rgba(255,255,255,0.1);}
+.login-step-text{font-size:13px;color:var(--text-dim);line-height:1.5;}
+.login-step-text strong{color:var(--text);display:block;font-size:14px;margin-bottom:2px;}
+.btn-open-browser{
+  width:100%;padding:14px;border-radius:12px;font-size:15px;font-weight:600;
+  background:linear-gradient(135deg,#2a5aa0,#1a3a8f);
+  border:1px solid rgba(79,142,247,0.4);color:#fff;cursor:pointer;
+  box-shadow:0 4px 20px rgba(79,142,247,0.2);
+  display:flex;align-items:center;justify-content:center;gap:10px;
+}
+.warning-note{
+  margin-top:14px;padding:10px 14px;border-radius:10px;font-size:12px;
+  background:rgba(247,201,72,0.07);border:1px solid rgba(247,201,72,0.2);
+  color:var(--warning);line-height:1.6;text-align:left;
+}
+
+/* ══════════════════════════════════════════
    SCENE 2 — DASHBOARD OVERVIEW
 ══════════════════════════════════════════ */
 .dashboard-frame{
@@ -467,6 +512,78 @@ html,body{
   </div>
 </div>
 
+<!-- ══ SCENE 1c: CHROMIUM DOWNLOAD ══ -->
+<div class="scene" id="s1c">
+  <div class="card chromium-card">
+    <div class="logo-block">
+      <div class="logo-icon">🏠</div>
+      <span class="logo-name">Nestify</span>
+    </div>
+    <div class="chromium-icon">🌐</div>
+    <h1>Подготовка браузера</h1>
+    <p class="sub" style="margin-bottom:0;">Chromium не найден — загружаем автоматически.<br/>Это нужно только один раз.</p>
+    <div class="dl-bar-wrap"><div class="dl-bar" id="dl-bar"></div></div>
+    <div class="dl-label">
+      <span id="dl-pct">0%</span>
+      <span id="dl-mb">0 / 148 МБ</span>
+    </div>
+    <div class="dl-status" id="dl-status">Connecting to storage.googleapis.com...</div>
+  </div>
+</div>
+
+<!-- ══ SCENE 1d: OPEN BROWSER / LOGIN ══ -->
+<div class="scene" id="s1d">
+  <div class="card login-card">
+    <div class="logo-block" style="justify-content:center;">
+      <div class="logo-icon">🏠</div>
+      <span class="logo-name">Nestify</span>
+    </div>
+    <div class="steps" style="margin-bottom:20px;">
+      <div class="step done"></div>
+      <div class="step done"></div>
+      <div class="step active"></div>
+    </div>
+    <h1>Войдите в Krisha.kz</h1>
+    <p class="sub">Агент будет действовать от вашего имени — войдите один раз</p>
+    <div class="login-steps">
+      <div class="login-step">
+        <div class="login-step-num step-num-done">✓</div>
+        <div class="login-step-text">
+          <strong>Chromium готов</strong>
+          Браузер установлен и готов к работе
+        </div>
+      </div>
+      <div class="login-step" id="ls-open" style="border-color:rgba(79,142,247,0.25);background:rgba(79,142,247,0.05);">
+        <div class="login-step-num step-num-active">2</div>
+        <div class="login-step-text">
+          <strong>Откройте браузер</strong>
+          Нажмите кнопку ниже — откроется Krisha.kz
+        </div>
+      </div>
+      <div class="login-step" id="ls-login">
+        <div class="login-step-num step-num-wait">3</div>
+        <div class="login-step-text">
+          <strong>Введите номер и пароль</strong>
+          Войдите в ваш аккаунт риелтора
+        </div>
+      </div>
+      <div class="login-step" id="ls-agent">
+        <div class="login-step-num step-num-wait">4</div>
+        <div class="login-step-text">
+          <strong>Запустите агента</strong>
+          Только после входа станет доступна кнопка
+        </div>
+      </div>
+    </div>
+    <button class="btn-open-browser" id="btn-open-browser">
+      <span>🌐</span> Открыть браузер → войти на Krisha.kz
+    </button>
+    <div class="warning-note">
+      ⚠️ Не закрывайте браузер сразу — войдите под своим номером телефона и паролем. Сессия сохранится автоматически.
+    </div>
+  </div>
+</div>
+
 <!-- ══ SCENE 2: DASHBOARD OVERVIEW ══ -->
 <div class="scene" id="s2">
   <div class="dashboard-frame">
@@ -715,8 +832,8 @@ html,body{
 
 <script>
 // ── Scene management ──────────────────────────────────────────────────────────
-const SCENES = ['s0','s1','s1b','s2','s3','s4','s5'];
-const DURATIONS = [3200, 5500, 2500, 5000, 5500, 5500, 99999];
+const SCENES = ['s0','s1','s1c','s1d','s1b','s2','s3','s4','s5'];
+const DURATIONS = [3200, 5500, 4500, 5500, 2500, 5000, 5500, 5500, 99999];
 let currentScene = 0, progressTimer = null, sceneTimer = null;
 
 const dots = document.getElementById('scene-dots');
@@ -833,8 +950,92 @@ function animateMessages(){
   });
 }
 
+// ── Chromium download animation ─────────────────────────────────────────────
+function animateDownload(){
+  const bar = document.getElementById('dl-bar');
+  const pct = document.getElementById('dl-pct');
+  const mb = document.getElementById('dl-mb');
+  const status = document.getElementById('dl-status');
+  if(!bar) return;
+  const total = 148;
+  const msgs = [
+    [5,'Resolving storage.googleapis.com...'],
+    [15,'Downloading chromium-linux.zip...'],
+    [40,'↓ 59 МБ / 148 МБ'],
+    [65,'↓ 96 МБ / 148 МБ'],
+    [85,'↓ 126 МБ / 148 МБ'],
+    [95,'Extracting...'],
+    [100,'✓ Chromium готов'],
+  ];
+  let i = 0;
+  function step(){
+    if(i >= msgs.length) return;
+    const [p, msg] = msgs[i++];
+    bar.style.transition = `width ${i===msgs.length?400:600}ms ease`;
+    bar.style.width = p+'%';
+    pct.textContent = p+'%';
+    mb.textContent = Math.round(p/100*total)+' / '+total+' МБ';
+    status.textContent = msg;
+    if(p===100){
+      setTimeout(() => showToast('✓','Chromium установлен', 'var(--success)'), 500);
+    }
+    if(i < msgs.length) setTimeout(step, p < 50 ? 500 : 400);
+  }
+  setTimeout(step, 300);
+}
+
+// ── Login step animation ─────────────────────────────────────────────────────
+function animateLoginSteps(){
+  // Step 2 pulses (already active on enter)
+  setTimeout(() => {
+    // Step 3 — "logged in"
+    const ls2 = document.getElementById('ls-login');
+    if(ls2){
+      ls2.style.borderColor = 'rgba(79,142,247,0.25)';
+      ls2.style.background = 'rgba(79,142,247,0.05)';
+      ls2.querySelector('.login-step-num').className = 'login-step-num step-num-active';
+      ls2.querySelector('.login-step-num').textContent = '3';
+    }
+    const ls1 = document.getElementById('ls-open');
+    if(ls1){
+      ls1.style.borderColor = '';
+      ls1.style.background = '';
+      ls1.querySelector('.login-step-num').className = 'login-step-num step-num-done';
+      ls1.querySelector('.login-step-num').textContent = '✓';
+    }
+  }, 2800);
+  setTimeout(() => {
+    // Step 4 — agent unlocked
+    const ls3 = document.getElementById('ls-agent');
+    if(ls3){
+      ls3.style.borderColor = 'rgba(62,207,142,0.25)';
+      ls3.style.background = 'rgba(62,207,142,0.05)';
+      ls3.querySelector('.login-step-num').className = 'login-step-num step-num-active';
+      ls3.querySelector('.login-step-num').style.background = 'rgba(62,207,142,0.15)';
+      ls3.querySelector('.login-step-num').style.color = 'var(--success)';
+      ls3.querySelector('.login-step-num').style.borderColor = 'rgba(62,207,142,0.3)';
+      ls3.querySelector('.login-step-num').textContent = '✓';
+    }
+    const ls2 = document.getElementById('ls-login');
+    if(ls2){
+      ls2.style.borderColor = '';
+      ls2.style.background = '';
+      ls2.querySelector('.login-step-num').className = 'login-step-num step-num-done';
+      ls2.querySelector('.login-step-num').textContent = '✓';
+    }
+    showToast('🌐','Сессия Krisha.kz сохранена', 'var(--success)');
+    const btn = document.getElementById('btn-open-browser');
+    if(btn){
+      btn.style.background = 'linear-gradient(135deg,var(--accent),#3a7de8)';
+      btn.innerHTML = '<span>🚀</span> Запустить агента →';
+      btn.style.boxShadow = '0 4px 20px rgba(79,142,247,0.3)';
+    }
+  }, 4200);
+}
+
 // ── Scene enter handlers ────────────────────────────────────────────────────
 function onSceneEnter(idx){
+  // s0=0, s1=1, s1c=2, s1d=3, s1b=4, s2=5, s3=6, s4=7, s5=8
   if(idx===1){
     // Typewrite token
     const el = document.getElementById('token-text');
@@ -845,20 +1046,26 @@ function onSceneEnter(idx){
     });
   }
   if(idx===2){
-    // Check animation already has CSS
+    animateDownload();
   }
   if(idx===3){
+    animateLoginSteps();
+  }
+  if(idx===4){
+    // Check animation already has CSS
+  }
+  if(idx===5){
     animateCounters();
     setTimeout(animateLogs, 600);
   }
-  if(idx===4){
+  if(idx===6){
     animateListings();
   }
-  if(idx===5){
+  if(idx===7){
     animateMessages();
     setTimeout(() => showToast('💬','3 сообщения отправлено', 'var(--success)'), 2000);
   }
-  if(idx===6){
+  if(idx===8){
     animateCounters(document.getElementById('s5'));
   }
 }
