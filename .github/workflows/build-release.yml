@@ -107,10 +107,16 @@ jobs:
 
       - name: Sign .app (ad-hoc — без платного сертификата Apple)
         run: |
-          # .links — служебная папка Playwright для hardlink-дедупликации,
-          # codesign --deep не умеет её обрабатывать → удаляем перед подписью
+          # Удаляем .links — codesign не умеет обрабатывать hardlink-папки
           find dist/Nestify.app -name ".links" -exec rm -rf {} + 2>/dev/null || true
-          codesign --force --deep --sign - dist/Nestify.app
+
+          # codesign --deep падает на вложенных .app (Chromium.app внутри playwright-browsers).
+          # Решение: сначала вручную подписать все вложенные .app (от глубоких к верхним),
+          # потом подписать основной bundle уже без --deep.
+          find dist/Nestify.app/Contents -name "*.app" | sort -r | while read nested; do
+            codesign --force --sign - "$nested" 2>/dev/null || true
+          done
+          codesign --force --sign - dist/Nestify.app
 
       - name: Install create-dmg
         run: brew install create-dmg
