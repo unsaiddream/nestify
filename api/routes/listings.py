@@ -3,7 +3,6 @@
 """
 
 import asyncio
-import re
 
 import aiosqlite
 from fastapi import APIRouter, HTTPException
@@ -165,11 +164,8 @@ async def _fetch_thumbnail_bg(listing_id: int, listing_url: str) -> None:
     image_url = None
     async with _fetch_sem:
         try:
-            from agent import browser as _br
-            # Используем уже запущенный контекст — не запускаем новый браузер
-            if _br._context is None:
-                return
-            ctx = _br._context
+            from agent.browser import get_context
+            ctx = await get_context()
             page = await ctx.new_page()
             try:
                 await page.goto(listing_url, wait_until="domcontentloaded", timeout=12_000)
