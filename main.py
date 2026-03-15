@@ -3,22 +3,32 @@ Nestify — точка входа.
 Запускает FastAPI сервер и автоматически открывает браузер.
 """
 
-import os
+import subprocess
 import sys
 import threading
 import time
 import webbrowser
-from pathlib import Path
 
-# Для PyInstaller: указываем Playwright где искать bundled браузеры
-if getattr(sys, 'frozen', False):
-    os.environ['PLAYWRIGHT_BROWSERS_PATH'] = str(Path(sys._MEIPASS) / 'playwright-browsers')
-
-import uvicorn  # noqa: E402 — импорт после установки env vars
+import uvicorn
 
 HOST = "127.0.0.1"
 PORT = 8000
 URL  = f"http://{HOST}:{PORT}"
+
+
+def ensure_playwright_browsers():
+    """Устанавливает Chromium при первом запуске (no-op если уже установлен)."""
+    try:
+        from playwright._impl._driver import compute_driver_executable
+        driver = compute_driver_executable()
+        result = subprocess.run(
+            [str(driver), 'install', 'chromium'],
+            capture_output=True, text=True, timeout=300
+        )
+        if result.returncode != 0:
+            print(f"  Предупреждение: playwright install вернул ошибку:\n{result.stderr}")
+    except Exception as e:
+        print(f"  Предупреждение: не удалось установить Chromium: {e}")
 
 
 def open_browser():
@@ -28,12 +38,17 @@ def open_browser():
 
 
 def main():
-    print(f"""
+    print("""
   ╔══════════════════════════════╗
-  ║   🏠  Nestify  v0.1.0        ║
-  ║   Запуск на {URL}   ║
+  ║   Nestify  v0.1.0            ║
+  ║   Запуск на localhost:8000   ║
   ╚══════════════════════════════╝
 """)
+
+    # Проверяем/устанавливаем Chromium (при повторных запусках — мгновенно)
+    print("  Проверка Chromium...")
+    ensure_playwright_browsers()
+    print("  Chromium готов.")
 
     # Открываем браузер в отдельном потоке, не блокируя сервер
     threading.Thread(target=open_browser, daemon=True).start()
