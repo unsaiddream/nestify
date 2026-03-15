@@ -70,7 +70,13 @@ jobs:
         run: pyinstaller nestify.spec --clean
 
       - name: Sign .app (ad-hoc)
-        run: codesign --force --deep --sign - dist/Nestify.app
+        run: |
+          codesign --force --deep --sign - \
+            --options runtime \
+            --entitlements installer/entitlements.plist \
+            dist/Nestify.app
+          # Снимаем карантин перед упаковкой в DMG
+          xattr -cr dist/Nestify.app
 
       - name: Install create-dmg
         run: brew install create-dmg
@@ -135,8 +141,12 @@ jobs:
             4. Браузер откроется на `http://localhost:8000`
             5. Введи Gemini API токен → войди в Krisha.kz → готово!
 
-            > **macOS**: если появится «не удаётся открыть»:
-            > `xattr -dr com.apple.quarantine /Applications/Nestify.app`
+            > ⚠️ **macOS «повреждён» / «не удаётся открыть»** — это Gatekeeper блокирует неподписанное приложение.
+            > Открой **Terminal** и выполни одну команду:
+            > ```
+            > xattr -cr /Applications/Nestify.app
+            > ```
+            > После этого открывай как обычно.
           files: |
             artifacts/Nestify-Setup.exe
             artifacts/Nestify.dmg
