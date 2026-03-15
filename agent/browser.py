@@ -211,8 +211,8 @@ async def _force_lazy_images(page) -> None:
                 || img.getAttribute('data-lazy')
                 || img.getAttribute('data-url')
                 || img.getAttribute('data-image');
-            if (lazy && lazy.startsWith('http') && (!img.src || img.src === window.location.href)) {
-                img.src = lazy;
+            if (lazy && lazy.startsWith('http')) {
+                img.setAttribute('src', lazy);  // setAttribute — не трогает JS-свойство .src
             }
         });
     }""")
@@ -428,17 +428,18 @@ async def _parse_card(card) -> RawListing | None:
     desc_el = await card.query_selector(".a-card__text-preview, .a-card__description")
     desc_text = (await desc_el.inner_text()).strip() if desc_el else None
 
-    # Первое фото — JS evaluate читает все lazy-load атрибуты сразу
+    # Первое фото — data-атрибуты ПЕРВЫМИ (img.src — JS-свойство, возвращает
+    # URL страницы когда атрибут пуст, поэтому используем getAttribute)
     thumbnail = await card.evaluate("""el => {
         const img = el.querySelector('img');
         if (!img) return null;
-        const src = img.src
-            || img.currentSrc
-            || img.getAttribute('data-src')
+        const src = img.getAttribute('data-src')
             || img.getAttribute('data-original')
             || img.getAttribute('data-lazy')
             || img.getAttribute('data-url')
             || img.getAttribute('data-image')
+            || img.currentSrc
+            || img.getAttribute('src')
             || (img.srcset ? img.srcset.split(/[,\\s]+/)[0] : null);
         return (src && src.startsWith('http')) ? src : null;
     }""")
