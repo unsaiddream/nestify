@@ -169,17 +169,10 @@ function renderListingRow(r) {
 
   const meta = [district, areaStr].filter(x => x && x !== '—').join(' · ');
 
-  // Данные для hover-превью (без длинных полей чтоб не раздувать HTML)
-  const previewData = JSON.stringify({
-    id: r.id, title: r.title, price: r.price, area: r.area,
-    district: r.district, url: r.url,
-    ai_score: r.ai_score, ai_comment: r.ai_comment,
-  }).replace(/"/g, '&quot;');
-
   return `<div class="listing-row">
     <div>
       <a class="listing-title" href="${r.url || '#'}" target="_blank"
-         data-listing="${previewData}">${r.title || r.krisha_id || '—'}</a>
+         rel="noopener">${r.title || r.krisha_id || '—'}</a>
       <div class="listing-meta">${meta || '—'}</div>
     </div>
     <div>${clientChip}</div>
@@ -195,8 +188,6 @@ async function loadOverviewListings() {
     const el = document.getElementById('overview-listings-body');
     if (!rows.length) return;
     el.innerHTML = rows.map(renderListingRow).join('');
-    // Грузим thumbnails заранее — к моменту ховера картинка уже готова
-    requestAnimationFrame(_prefetchVisibleThumbnails);
   } catch (_) {}
 }
 
@@ -209,7 +200,6 @@ async function loadListings() {
       return;
     }
     el.innerHTML = rows.map(renderListingRow).join('');
-    requestAnimationFrame(_prefetchVisibleThumbnails);
   } catch (e) { showToast(e.message, 'error'); }
 }
 
@@ -719,185 +709,6 @@ document.getElementById('btn-save-polygon').addEventListener('click', async () =
     const opt = document.querySelector(`#map-client-select option[value="${clientId}"]`);
     if (opt) opt.dataset.polygon = coords;
   } catch (e) { showToast(e.message, 'error'); }
-});
-
-// ── Listing hover tooltip ─────────────────────────────────────────────────────
-
-const tooltip   = document.getElementById('listing-tooltip');
-const lttImg    = document.getElementById('ltt-img');
-const lttPh     = document.getElementById('ltt-img-placeholder');
-const lttTitle  = document.getElementById('ltt-title');
-const lttMeta   = document.getElementById('ltt-meta');
-const lttPrice  = document.getElementById('ltt-price');
-const lttScore  = document.getElementById('ltt-score-row');
-const lttComment= document.getElementById('ltt-comment');
-const lttLink   = document.getElementById('ltt-link');
-
-let _tooltipTimer  = null;
-let _tooltipActive = false;
-let _imgCache      = {};  // listingId → imageUrl | null | 'pending'
-let _posRafId      = null;
-
-function _positionTooltip(e) {
-  // Двигаем курсор через CSS-переменные в transform — нет layout reflow
-  // no-transition убирает задержку позиции (transition только для show/hide)
-  const TW = 300, TH = 380, PAD = 14;
-  let x = e.clientX + 18;
-  let y = e.clientY - 60;
-  if (x + TW + PAD > window.innerWidth)  x = e.clientX - TW - 18;
-  if (y + TH + PAD > window.innerHeight) y = window.innerHeight - TH - PAD;
-  if (y < PAD) y = PAD;
-
-  if (_posRafId) return; // уже запланирован кадр
-  _posRafId = requestAnimationFrame(() => {
-    _posRafId = null;
-    tooltip.classList.add('no-transition');
-    tooltip.style.setProperty('--tt-x', x + 'px');
-    tooltip.style.setProperty('--tt-y', y + 'px');
-    // Снимаем no-transition в следующем кадре, чтобы show-анимация работала
-    requestAnimationFrame(() => tooltip.classList.remove('no-transition'));
-  });
-}
-
-function _fillTooltip(data) {
-  lttTitle.textContent = data.title || '—';
-
-  const meta = [data.district, data.area ? data.area + ' м²' : null]
-    .filter(Boolean).join(' · ');
-  lttMeta.textContent = meta || '';
-
-  lttPrice.textContent = data.price ? fmt(data.price) + ' ₸' : '—';
-
-  const s = data.ai_score;
-  let scl = 'none', slabel = 'AI оценка не задана';
-  if (s >= 7)      { scl = 'high'; slabel = `⭐ AI: ${s}/10`; }
-  else if (s >= 5) { scl = 'mid';  slabel = `🟡 AI: ${s}/10`; }
-  else if (s > 0)  { scl = 'low';  slabel = `⚠️ AI: ${s}/10`; }
-  lttScore.innerHTML = `<span class="ltt-score-badge ${scl}">${slabel}</span>`;
-
-  lttComment.textContent = data.ai_comment || '';
-  lttComment.style.display = data.ai_comment ? '' : 'none';
-
-  lttLink.href = data.url || '#';
-
-  // Image
-  lttImg.classList.remove('loaded');
-  lttPh.classList.remove('hidden');
-
-  const lid = data.id;
-  if (!lid) return;
-
-  const cached = _imgCache[lid];
-  if (cached === 'pending') {
-    // Уже грузится фоном — покажем когда готово
-    const poll = setInterval(() => {
-      const v = _imgCache[lid];
-      if (v !== 'pending') { clearInterval(poll); if (_tooltipActive) _applyImage(v); }
-    }, 200);
-    return;
-  }
-  if (cached !== undefined) {
-    _applyImage(cached);
-    return;
-  }
-
-  _imgCache[lid] = 'pending';
-  _fetchThumbnail(lid);
-}
-
-function _applyImage(url) {
-  if (!url) { lttImg.src = ''; return; }
-  if (lttImg.src === url) {
-    // картинка уже загружена — сразу показываем
-    if (lttImg.complete && lttImg.naturalWidth) {
-      lttImg.classList.add('loaded');
-      lttPh.classList.add('hidden');
-    }
-    return;
-  }
-  lttImg.classList.remove('loaded');
-  lttImg.onload  = () => { lttImg.classList.add('loaded'); lttPh.classList.add('hidden'); };
-  lttImg.onerror = () => { lttImg.src = ''; };
-  lttImg.src = url;
-}
-
-// Запрашивает thumbnail у сервера. Если ответ null (фон-задача ещё не завершена) —
-// повторяет через 3с, максимум 4 раза. Когда есть URL — применяет сразу.
-function _fetchThumbnail(lid, attempt = 0) {
-  fetch(`/api/listings/${lid}/preview`)
-    .then(r => r.ok ? r.json() : null)
-    .then(d => {
-      const url = d?.image_url || null;
-      if (!url && attempt < 4) {
-        // Фоновый фетч ещё идёт — повторим через 3с
-        setTimeout(() => _fetchThumbnail(lid, attempt + 1), 3_000);
-        return;
-      }
-      _imgCache[lid] = url;
-      if (_tooltipActive) _applyImage(url);
-    })
-    .catch(() => { _imgCache[lid] = null; });
-}
-
-// Загружает thumbnails для всех listings заранее (вызывается после рендера таблицы)
-function _prefetchVisibleThumbnails() {
-  document.querySelectorAll('a.listing-title[data-listing]').forEach(link => {
-    try {
-      const data = JSON.parse(link.dataset.listing);
-      const lid = data.id;
-      if (!lid || lid in _imgCache) return;
-      _imgCache[lid] = 'pending';
-      _fetchThumbnail(lid);
-    } catch {}
-  });
-}
-
-// Делегируем события через document — работает для динамически созданных строк
-document.addEventListener('mouseover', e => {
-  const link = e.target.closest('a.listing-title[data-listing]');
-  if (!link) return;
-
-  clearTimeout(_tooltipTimer);
-  // Показываем сразу — без задержки, данные есть в data-атрибуте
-  const data = JSON.parse(link.dataset.listing || '{}');
-  _fillTooltip(data);
-  _positionTooltip(e);
-  tooltip.classList.add('visible');
-  _tooltipActive = true;
-});
-
-document.addEventListener('mousemove', e => {
-  if (!tooltip.classList.contains('visible')) return;
-  const overLink    = !!e.target.closest('a.listing-title[data-listing]');
-  const overTooltip = !!e.target.closest('#listing-tooltip');
-  if (overLink) {
-    _positionTooltip(e);
-  } else if (!overTooltip) {
-    clearTimeout(_tooltipTimer);
-    _tooltipTimer = setTimeout(() => {
-      tooltip.classList.remove('visible');
-      _tooltipActive = false;
-    }, 80);
-  }
-});
-
-document.addEventListener('mouseout', e => {
-  if (!e.target.closest('a.listing-title[data-listing]')) return;
-  clearTimeout(_tooltipTimer);
-  _tooltipTimer = setTimeout(() => {
-    if (!tooltip.matches(':hover')) {
-      tooltip.classList.remove('visible');
-      _tooltipActive = false;
-    }
-  }, 100);
-});
-
-tooltip.addEventListener('mouseleave', () => {
-  clearTimeout(_tooltipTimer);
-  _tooltipTimer = setTimeout(() => {
-    tooltip.classList.remove('visible');
-    _tooltipActive = false;
-  }, 80);
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────

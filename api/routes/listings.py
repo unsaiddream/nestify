@@ -2,68 +2,11 @@
 Роуты для получения объявлений и клиентов из БД.
 """
 
-import asyncio
-import re
-import urllib.request
-
 import aiosqlite
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from database.db import DB_PATH
-
-_preview_cache: dict[int, str | None] = {}  # listing_id → image_url | None
-_fetch_pending: set[int] = set()            # listing_ids с активным фетчем (без дублей)
-_fetch_sem = asyncio.Semaphore(1)           # 1 — последовательный доступ к _thumb_page
-_thumb_page = None                          # единственная вкладка для thumbnail-фетча
-
-# Заголовки как у обычного браузера — обходят базовую защиту от ботов
-_HTTP_HEADERS = {
-    "User-Agent": (
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/124.0.0.0 Safari/537.36"
-    ),
-    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-    "Accept-Language": "ru-RU,ru;q=0.9,en;q=0.8",
-    "Referer": "https://krisha.kz/",
-}
-# og:image — атрибуты могут идти в любом порядке
-_OG_RE = re.compile(
-    r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\'](https?://[^"\'>\s]+)["\']'
-    r'|<meta[^>]+content=["\'](https?://[^"\'>\s]+)["\'][^>]+property=["\']og:image["\']',
-    re.I,
-)
-
-
-def _fetch_og_sync(url: str) -> str | None:
-    """Синхронный HTTP-запрос за og:image. Запускается в thread pool."""
-    try:
-        req = urllib.request.Request(url, headers=_HTTP_HEADERS)
-        with urllib.request.urlopen(req, timeout=10) as resp:
-            html = resp.read(60_000).decode("utf-8", errors="ignore")
-        m = _OG_RE.search(html)
-        if m:
-            return m.group(1) or m.group(2)
-    except Exception:
-        pass
-    return None
-
-
-async def _ensure_thumb_page():
-    """Возвращает или создаёт единственную вкладку для thumbnail-фетча.
-    Не открывает новую вкладку если уже есть живая."""
-    global _thumb_page
-    try:
-        from agent import browser as _br
-        if _br._context is None:
-            return None
-        if _thumb_page is not None and not _thumb_page.is_closed():
-            return _thumb_page
-        _thumb_page = await _br._context.new_page()
-        return _thumb_page
-    except Exception:
-        return None
 
 
 router = APIRouter(prefix="/listings", tags=["listings"])
@@ -174,76 +117,15 @@ async def get_messages(limit: int = 50):
 
 @router.get("/{listing_id}/preview")
 async def get_listing_preview(listing_id: int):
-    """Возвращает превью-изображение объявления.
-    Сначала смотрит thumbnail из БД, иначе — загружает через Playwright-контекст
-    (тот же браузер что и агент → cookies krisha.kz → никаких блокировок).
-    """
-    if listing_id in _preview_cache:
-        return {"image_url": _preview_cache[listing_id]}
-
+    """Возвращает thumbnail из БД (заполняется скрапером при сканировании)."""
     async with aiosqlite.connect(DB_PATH) as db:
         async with db.execute(
-            "SELECT url, thumbnail FROM listings WHERE id = ?", (listing_id,)
+            "SELECT thumbnail FROM listings WHERE id = ?", (listing_id,)
         ) as cur:
             row = await cur.fetchone()
-
     if not row:
         raise HTTPException(status_code=404, detail="Listing not found")
-
-    listing_url, thumbnail = row
-
-    if thumbnail:
-        _preview_cache[listing_id] = thumbnail
-        return {"image_url": thumbnail}
-
-    if not listing_url:
-        _preview_cache[listing_id] = None
-        return {"image_url": None}
-
-    # Запускаем фоновый HTTP-фетч (без Playwright — og:image есть в HTML сразу).
-    # Дедупликация: если уже идёт фетч для этого listing_id — не создаём ещё один.
-    if listing_id not in _fetch_pending:
-        _fetch_pending.add(listing_id)
-        asyncio.create_task(_fetch_thumbnail_bg(listing_id, listing_url))
-    return {"image_url": None}
-
-
-async def _fetch_thumbnail_bg(listing_id: int, listing_url: str) -> None:
-    """Фоновая задача: HTTP-запрос за og:image страницы объявления.
-    Приоритет: urllib (быстро, без браузера) → Playwright single-page (fallback)."""
-    image_url = None
-    async with _fetch_sem:  # Semaphore(1) — последовательный доступ к _thumb_page
-        try:
-            # Сначала пробуем plain HTTP (og:image часто есть в server-rendered HTML)
-            image_url = await asyncio.to_thread(_fetch_og_sync, listing_url)
-        except Exception:
-            pass
-
-        if not image_url:
-            # Fallback: единственная переиспользуемая вкладка — не создаём новую
-            page = await _ensure_thumb_page()
-            if page:
-                try:
-                    await page.goto(listing_url, wait_until="domcontentloaded", timeout=10_000)
-                    image_url = await page.evaluate(
-                        "() => { const m = document.querySelector('meta[property=\"og:image\"]');"
-                        " return m?.content?.startsWith('http') ? m.content : null; }"
-                    )
-                except Exception:
-                    pass
-
-    _fetch_pending.discard(listing_id)
-    _preview_cache[listing_id] = image_url
-    if image_url:
-        try:
-            async with aiosqlite.connect(DB_PATH) as db:
-                await db.execute(
-                    "UPDATE listings SET thumbnail = ? WHERE id = ?",
-                    (image_url, listing_id),
-                )
-                await db.commit()
-        except Exception:
-            pass
+    return {"image_url": row[0]}
 
 
 @router.get("/stats")
