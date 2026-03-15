@@ -62,6 +62,9 @@ jobs:
       - name: Build .app with PyInstaller
         run: pyinstaller nestify.spec --clean
 
+      - name: Sign .app (ad-hoc, без сертификата Apple)
+        run: codesign --force --deep --sign - dist/Nestify.app
+
       - name: Zip .app bundle
         run: |
           cd dist
@@ -112,8 +115,9 @@ jobs:
             4. Браузер откроется автоматически на `http://localhost:8000`
             5. Введи Gemini API токен → войди в Krisha.kz → готово!
 
-            > **macOS**: если появится предупреждение безопасности —
-            > Системные настройки → Конфиденциальность → «Всё равно открыть»
+            > **macOS**: если появится «не удаётся открыть» — это Gatekeeper.
+            > Запусти в Терминале: `xattr -dr com.apple.quarantine Nestify.app`
+            > Затем дважды кликни на иконку — откроется нормально.
           files: |
             artifacts/Nestify.exe
             artifacts/Nestify-macOS.zip
