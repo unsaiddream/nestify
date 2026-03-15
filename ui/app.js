@@ -195,6 +195,8 @@ async function loadOverviewListings() {
     const el = document.getElementById('overview-listings-body');
     if (!rows.length) return;
     el.innerHTML = rows.map(renderListingRow).join('');
+    // Грузим thumbnails заранее — к моменту ховера картинка уже готова
+    requestAnimationFrame(_prefetchVisibleThumbnails);
   } catch (_) {}
 }
 
@@ -207,6 +209,7 @@ async function loadListings() {
       return;
     }
     el.innerHTML = rows.map(renderListingRow).join('');
+    requestAnimationFrame(_prefetchVisibleThumbnails);
   } catch (e) { showToast(e.message, 'error'); }
 }
 
@@ -732,17 +735,28 @@ const lttLink   = document.getElementById('ltt-link');
 
 let _tooltipTimer  = null;
 let _tooltipActive = false;
-let _imgCache      = {};  // listingId → imageUrl
+let _imgCache      = {};  // listingId → imageUrl | null | 'pending'
+let _posRafId      = null;
 
 function _positionTooltip(e) {
+  // Двигаем курсор через CSS-переменные в transform — нет layout reflow
+  // no-transition убирает задержку позиции (transition только для show/hide)
   const TW = 300, TH = 380, PAD = 14;
   let x = e.clientX + 18;
   let y = e.clientY - 60;
   if (x + TW + PAD > window.innerWidth)  x = e.clientX - TW - 18;
   if (y + TH + PAD > window.innerHeight) y = window.innerHeight - TH - PAD;
   if (y < PAD) y = PAD;
-  tooltip.style.left = x + 'px';
-  tooltip.style.top  = y + 'px';
+
+  if (_posRafId) return; // уже запланирован кадр
+  _posRafId = requestAnimationFrame(() => {
+    _posRafId = null;
+    tooltip.classList.add('no-transition');
+    tooltip.style.setProperty('--tt-x', x + 'px');
+    tooltip.style.setProperty('--tt-y', y + 'px');
+    // Снимаем no-transition в следующем кадре, чтобы show-анимация работала
+    requestAnimationFrame(() => tooltip.classList.remove('no-transition'));
+  });
 }
 
 function _fillTooltip(data) {
@@ -773,29 +787,69 @@ function _fillTooltip(data) {
   const lid = data.id;
   if (!lid) return;
 
-  if (_imgCache[lid] !== undefined) {
-    _applyImage(_imgCache[lid]);
+  const cached = _imgCache[lid];
+  if (cached === 'pending') {
+    // Уже грузится фоном — покажем когда готово
+    const poll = setInterval(() => {
+      const v = _imgCache[lid];
+      if (v !== 'pending') { clearInterval(poll); if (_tooltipActive) _applyImage(v); }
+    }, 200);
+    return;
+  }
+  if (cached !== undefined) {
+    _applyImage(cached);
     return;
   }
 
+  _imgCache[lid] = 'pending';
+  _fetchThumbnail(lid);
+}
+
+function _applyImage(url) {
+  if (!url) { lttImg.src = ''; return; }
+  if (lttImg.src === url) {
+    // картинка уже загружена — сразу показываем
+    if (lttImg.complete && lttImg.naturalWidth) {
+      lttImg.classList.add('loaded');
+      lttPh.classList.add('hidden');
+    }
+    return;
+  }
+  lttImg.classList.remove('loaded');
+  lttImg.onload  = () => { lttImg.classList.add('loaded'); lttPh.classList.add('hidden'); };
+  lttImg.onerror = () => { lttImg.src = ''; };
+  lttImg.src = url;
+}
+
+// Запрашивает thumbnail у сервера. Если ответ null (фон-задача ещё не завершена) —
+// повторяет через 3с, максимум 4 раза. Когда есть URL — применяет сразу.
+function _fetchThumbnail(lid, attempt = 0) {
   fetch(`/api/listings/${lid}/preview`)
     .then(r => r.ok ? r.json() : null)
     .then(d => {
       const url = d?.image_url || null;
+      if (!url && attempt < 4) {
+        // Фоновый фетч ещё идёт — повторим через 3с
+        setTimeout(() => _fetchThumbnail(lid, attempt + 1), 3_000);
+        return;
+      }
       _imgCache[lid] = url;
       if (_tooltipActive) _applyImage(url);
     })
     .catch(() => { _imgCache[lid] = null; });
 }
 
-function _applyImage(url) {
-  if (!url) return;
-  lttImg.src = url;
-  lttImg.onload = () => {
-    lttImg.classList.add('loaded');
-    lttPh.classList.add('hidden');
-  };
-  lttImg.onerror = () => { lttImg.src = ''; };
+// Загружает thumbnails для всех listings заранее (вызывается после рендера таблицы)
+function _prefetchVisibleThumbnails() {
+  document.querySelectorAll('a.listing-title[data-listing]').forEach(link => {
+    try {
+      const data = JSON.parse(link.dataset.listing);
+      const lid = data.id;
+      if (!lid || lid in _imgCache) return;
+      _imgCache[lid] = 'pending';
+      _fetchThumbnail(lid);
+    } catch {}
+  });
 }
 
 // Делегируем события через document — работает для динамически созданных строк
