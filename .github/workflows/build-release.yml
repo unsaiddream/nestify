@@ -30,24 +30,6 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Convert SVG icon to ICO
-        run: |
-          pip install svglib reportlab Pillow
-          python -c "
-          import io
-          from svglib.svglib import svg2rlg
-          from reportlab.graphics import renderPM
-          from PIL import Image
-          drawing = svg2rlg('assets/logo.svg')
-          scale = 256 / max(drawing.width, drawing.height)
-          drawing.width *= scale
-          drawing.height *= scale
-          drawing.transform = (scale, 0, 0, scale, 0, 0)
-          png_data = renderPM.drawToString(drawing, fmt='PNG')
-          img = Image.open(io.BytesIO(png_data)).convert('RGBA')
-          img.save('assets/logo.ico', format='ICO', sizes=[(256,256),(128,128),(64,64),(32,32),(16,16)])
-          "
-
       - name: Build .exe with PyInstaller
         run: pyinstaller nestify.spec --clean
 
@@ -76,11 +58,6 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
-
-      - name: Convert SVG icon to PNG
-        run: |
-          brew install librsvg
-          rsvg-convert -w 512 -h 512 assets/logo.svg -o assets/logo.png
 
       - name: Build .app with PyInstaller
         run: pyinstaller nestify.spec --clean
