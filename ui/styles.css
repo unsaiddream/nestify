@@ -1298,7 +1298,6 @@ html[data-theme="light"] {
 .listing-tooltip.no-transition {
   transition: none !important;
 }
-}
 
 /* Image area */
 .ltt-image-wrap {
