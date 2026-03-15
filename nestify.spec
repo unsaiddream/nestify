@@ -67,7 +67,7 @@ if sys.platform == 'darwin':
         strip=False,
         upx=True,
         console=False,          # без консольного окна
-        icon=None,
+        icon='assets/logo.png',
     )
     coll = COLLECT(
         exe,
@@ -82,7 +82,7 @@ if sys.platform == 'darwin':
     app = BUNDLE(
         coll,
         name='Nestify.app',
-        icon=None,
+        icon='assets/logo.png',
         bundle_identifier='kz.nestify.app',
         info_plist={
             'NSPrincipalClass': 'NSApplication',
@@ -117,5 +117,5 @@ else:
         target_arch=None,
         codesign_identity=None,
         entitlements_file=None,
-        icon=None,
+        icon='assets/logo.ico',
     )

@@ -30,6 +30,17 @@ jobs:
           pip install -r requirements.txt
           pip install pyinstaller
 
+      - name: Convert SVG icon to ICO
+        run: |
+          pip install cairosvg Pillow
+          python -c "
+          import cairosvg, io
+          from PIL import Image
+          png_data = cairosvg.svg2png(url='assets/logo.svg', output_width=256, output_height=256)
+          img = Image.open(io.BytesIO(png_data)).convert('RGBA')
+          img.save('assets/logo.ico', format='ICO', sizes=[(256,256),(128,128),(64,64),(32,32),(16,16)])
+          "
+
       - name: Build .exe with PyInstaller
         run: pyinstaller nestify.spec --clean
 
@@ -58,6 +69,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
+
+      - name: Convert SVG icon to PNG
+        run: |
+          pip install cairosvg
+          python -c "
+          import cairosvg
+          cairosvg.svg2png(url='assets/logo.svg', write_to='assets/logo.png', output_width=512, output_height=512)
+          "
 
       - name: Build .app with PyInstaller
         run: pyinstaller nestify.spec --clean
