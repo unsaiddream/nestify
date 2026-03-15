@@ -14,7 +14,8 @@ from database.db import DB_PATH
 
 _preview_cache: dict[int, str | None] = {}  # listing_id → image_url | None
 _fetch_pending: set[int] = set()            # listing_ids с активным фетчем (без дублей)
-_fetch_sem = asyncio.Semaphore(4)           # не более 4 параллельных HTTP-запросов
+_fetch_sem = asyncio.Semaphore(1)           # 1 — последовательный доступ к _thumb_page
+_thumb_page = None                          # единственная вкладка для thumbnail-фетча
 
 # Заголовки как у обычного браузера — обходят базовую защиту от ботов
 _HTTP_HEADERS = {
@@ -47,6 +48,23 @@ def _fetch_og_sync(url: str) -> str | None:
     except Exception:
         pass
     return None
+
+
+async def _ensure_thumb_page():
+    """Возвращает или создаёт единственную вкладку для thumbnail-фетча.
+    Не открывает новую вкладку если уже есть живая."""
+    global _thumb_page
+    try:
+        from agent import browser as _br
+        if _br._context is None:
+            return None
+        if _thumb_page is not None and not _thumb_page.is_closed():
+            return _thumb_page
+        _thumb_page = await _br._context.new_page()
+        return _thumb_page
+    except Exception:
+        return None
+
 
 router = APIRouter(prefix="/listings", tags=["listings"])
 
@@ -192,14 +210,27 @@ async def get_listing_preview(listing_id: int):
 
 async def _fetch_thumbnail_bg(listing_id: int, listing_url: str) -> None:
     """Фоновая задача: HTTP-запрос за og:image страницы объявления.
-    Не использует Playwright — og:image рендерится на сервере (SEO-тег)."""
+    Приоритет: urllib (быстро, без браузера) → Playwright single-page (fallback)."""
     image_url = None
-    async with _fetch_sem:
+    async with _fetch_sem:  # Semaphore(1) — последовательный доступ к _thumb_page
         try:
-            # asyncio.to_thread — не блокируем event loop синхронным urllib
+            # Сначала пробуем plain HTTP (og:image часто есть в server-rendered HTML)
             image_url = await asyncio.to_thread(_fetch_og_sync, listing_url)
         except Exception:
             pass
+
+        if not image_url:
+            # Fallback: единственная переиспользуемая вкладка — не создаём новую
+            page = await _ensure_thumb_page()
+            if page:
+                try:
+                    await page.goto(listing_url, wait_until="domcontentloaded", timeout=10_000)
+                    image_url = await page.evaluate(
+                        "() => { const m = document.querySelector('meta[property=\"og:image\"]');"
+                        " return m?.content?.startsWith('http') ? m.content : null; }"
+                    )
+                except Exception:
+                    pass
 
     _fetch_pending.discard(listing_id)
     _preview_cache[listing_id] = image_url
