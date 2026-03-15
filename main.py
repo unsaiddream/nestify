@@ -3,14 +3,18 @@ Nestify — точка входа.
 Запускает FastAPI сервер и автоматически открывает браузер.
 """
 
-import asyncio
+import os
 import sys
 import threading
 import time
 import webbrowser
 from pathlib import Path
 
-import uvicorn
+# Для PyInstaller: указываем Playwright где искать bundled браузеры
+if getattr(sys, 'frozen', False):
+    os.environ['PLAYWRIGHT_BROWSERS_PATH'] = str(Path(sys._MEIPASS) / 'playwright-browsers')
+
+import uvicorn  # noqa: E402 — импорт после установки env vars
 
 HOST = "127.0.0.1"
 PORT = 8000

@@ -1,13 +1,17 @@
 # -*- mode: python ; coding: utf-8 -*-
 """
 PyInstaller spec для сборки Nestify.
-Генерирует .exe (Windows) или .app (macOS).
+Генерирует .app + .dmg (macOS) или директорию для NSIS-инсталлера (Windows).
 """
 
 import sys
 from pathlib import Path
 
 block_cipher = None
+
+# Playwright browsers — добавляем в bundle если папка уже скачана в CI
+_pw_dir = './playwright-browsers'
+_pw_datas = [(_pw_dir, 'playwright-browsers')] if Path(_pw_dir).exists() else []
 
 a = Analysis(
     ['main.py'],
@@ -19,7 +23,7 @@ a = Analysis(
         ('api', 'api'),
         ('agent', 'agent'),
         ('database', 'database'),
-    ],
+    ] + _pw_datas,
     hiddenimports=[
         'uvicorn.logging',
         'uvicorn.loops',
@@ -65,7 +69,7 @@ a = Analysis(
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
 # ──────────────────────────────────────────────
-# macOS — .app bundle
+# macOS — .app bundle (COLLECT + BUNDLE)
 # ──────────────────────────────────────────────
 if sys.platform == 'darwin':
     exe = EXE(
@@ -78,7 +82,7 @@ if sys.platform == 'darwin':
         bootloader_ignore_signals=False,
         strip=False,
         upx=True,
-        console=False,          # без консольного окна
+        console=False,
         icon='assets/logo.png',
     )
     coll = COLLECT(
@@ -106,28 +110,34 @@ if sys.platform == 'darwin':
     )
 
 # ──────────────────────────────────────────────
-# Windows — .exe (одиночный файл)
+# Windows — директория (для NSIS-инсталлера)
 # ──────────────────────────────────────────────
 else:
     exe = EXE(
         pyz,
         a.scripts,
-        a.binaries,
-        a.zipfiles,
-        a.datas,
         [],
+        exclude_binaries=True,
         name='Nestify',
         debug=False,
         bootloader_ignore_signals=False,
         strip=False,
         upx=True,
-        upx_exclude=[],
-        runtime_tmpdir=None,
-        console=False,          # без консольного окна
+        console=False,
         disable_windowed_traceback=False,
         argv_emulation=False,
         target_arch=None,
         codesign_identity=None,
         entitlements_file=None,
         icon='assets/logo.ico',
+    )
+    coll = COLLECT(
+        exe,
+        a.binaries,
+        a.zipfiles,
+        a.datas,
+        strip=False,
+        upx=True,
+        upx_exclude=[],
+        name='Nestify',
     )

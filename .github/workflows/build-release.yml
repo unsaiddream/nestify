@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   # ─────────────────────────────────────────
-  # Windows → Nestify.exe
+  # Windows → Nestify-Setup.exe (NSIS installer + Playwright/Chromium)
   # ─────────────────────────────────────────
   build-windows:
     runs-on: windows-latest
@@ -24,23 +24,36 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller
 
-      - name: Build .exe with PyInstaller
+      - name: Download Playwright Chromium (bundled в installer)
+        run: |
+          $env:PLAYWRIGHT_BROWSERS_PATH = ".\playwright-browsers"
+          playwright install chromium
+        shell: pwsh
+
+      - name: Build directory с PyInstaller
         run: pyinstaller nestify.spec --clean
 
-      - name: Upload Windows artifact
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+
+      - name: Build Nestify-Setup.exe (NSIS)
+        run: makensis installer\nestify.nsi
+        shell: cmd
+
+      - name: Upload Windows installer
         uses: actions/upload-artifact@v4
         with:
           name: Nestify-Windows
-          path: dist/Nestify.exe
+          path: dist\Nestify-Setup.exe
 
   # ─────────────────────────────────────────
-  # macOS → Nestify.app → Nestify-macOS.zip
+  # macOS → Nestify.dmg (drag-to-Applications + Playwright/Chromium)
   # ─────────────────────────────────────────
   build-macos:
     runs-on: macos-latest
@@ -53,28 +66,48 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install pyinstaller Pillow
 
-      - name: Build .app with PyInstaller
+      - name: Download Playwright Chromium (bundled в .app)
+        run: |
+          PLAYWRIGHT_BROWSERS_PATH=./playwright-browsers playwright install chromium
+
+      - name: Build .app с PyInstaller
         run: pyinstaller nestify.spec --clean
 
-      - name: Zip .app bundle
-        run: |
-          cd dist
-          zip -r Nestify-macOS.zip Nestify.app
+      - name: Sign .app (ad-hoc — без платного сертификата Apple)
+        run: codesign --force --deep --sign - dist/Nestify.app
 
-      - name: Upload macOS artifact
+      - name: Install create-dmg
+        run: brew install create-dmg
+
+      - name: Create Nestify.dmg
+        run: |
+          create-dmg \
+            --volname "Nestify" \
+            --volicon "assets/logo.png" \
+            --window-pos 200 120 \
+            --window-size 600 380 \
+            --icon-size 120 \
+            --icon "Nestify.app" 165 185 \
+            --hide-extension "Nestify.app" \
+            --app-drop-link 435 185 \
+            --no-internet-enable \
+            "dist/Nestify.dmg" \
+            "dist/Nestify.app"
+
+      - name: Upload macOS DMG
         uses: actions/upload-artifact@v4
         with:
           name: Nestify-macOS
-          path: dist/Nestify-macOS.zip
+          path: dist/Nestify.dmg
 
   # ─────────────────────────────────────────
-  # Создаём GitHub Release и прикладываем файлы
+  # GitHub Release с обоими файлами
   # ─────────────────────────────────────────
   release:
     needs: [build-windows, build-macos]
@@ -100,22 +133,24 @@ jobs:
             ## Nestify ${{ github.ref_name }}
 
             ### Скачать
-            | Платформа | Файл |
-            |-----------|------|
-            | 🪟 Windows | `Nestify.exe` |
-            | 🍎 macOS   | `Nestify-macOS.zip` → распакуй и перенеси в Applications |
+            | Платформа | Файл | Что внутри |
+            |-----------|------|-----------|
+            | 🪟 Windows | `Nestify-Setup.exe` | Installer — установит в Program Files, ярлык на рабочем столе |
+            | 🍎 macOS   | `Nestify.dmg` | Перетащи Nestify.app в Applications |
+
+            > **Chromium уже включён** — дополнительно ничего устанавливать не нужно.
 
             ### Первый запуск
-            1. Скачай файл для своей платформы
-            2. **macOS**: распакуй архив, перенеси `Nestify.app` в папку Applications
-            3. **Windows**: запусти `Nestify.exe`
-            4. Браузер откроется автоматически на `http://localhost:8000`
-            5. Введи Gemini API токен → войди в Krisha.kz → готово!
+            1. **Windows**: запусти `Nestify-Setup.exe`, следуй мастеру установки
+            2. **macOS**: открой `Nestify.dmg`, перетащи Nestify в Applications, запусти
+            3. Браузер откроется автоматически на `http://localhost:8000`
+            4. Введи Gemini API токен → войди в Krisha.kz → готово!
 
-            > **macOS**: если появится предупреждение безопасности —
-            > Системные настройки → Конфиденциальность → «Всё равно открыть»
+            > **macOS**: если появится «не удаётся открыть» — это Gatekeeper.
+            > Запусти в Терминале: `xattr -dr com.apple.quarantine /Applications/Nestify.app`
+            > Затем дважды кликни на иконку — откроется нормально.
           files: |
-            artifacts/Nestify.exe
-            artifacts/Nestify-macOS.zip
+            artifacts/Nestify-Setup.exe
+            artifacts/Nestify.dmg
           draft: false
           prerelease: false
