@@ -13,6 +13,15 @@ import webbrowser
 from pathlib import Path
 
 # ──────────────────────────────────────────────────────────────
+# 0. PLAYWRIGHT_BROWSERS_PATH — ДОЛЖНО быть установлено ДО
+#    любых импортов playwright, иначе замороженный .app ищет
+#    браузеры внутри себя (read-only bundle) и крашится.
+# ──────────────────────────────────────────────────────────────
+_browsers_path = Path.home() / "Library" / "Application Support" / "Nestify" / "browsers"
+_browsers_path.mkdir(parents=True, exist_ok=True)
+os.environ["PLAYWRIGHT_BROWSERS_PATH"] = str(_browsers_path)
+
+# ──────────────────────────────────────────────────────────────
 # 1. Логирование в файл — чтобы видеть краши при запуске из .app
 # ──────────────────────────────────────────────────────────────
 LOG_DIR = Path.home() / "Library" / "Logs" / "Nestify"
@@ -62,14 +71,18 @@ URL  = f"http://{HOST}:{PORT}"
 
 def ensure_playwright_browsers():
     """Устанавливает Chromium при первом запуске (no-op если уже установлен)."""
+    log.info(f"PLAYWRIGHT_BROWSERS_PATH = {os.environ.get('PLAYWRIGHT_BROWSERS_PATH')}")
     try:
         from playwright._impl._driver import compute_driver_executable
         driver = compute_driver_executable()
+        log.info(f"Playwright driver: {driver}")
         log.info("Запускаем playwright install chromium...")
         result = subprocess.run(
             [str(driver), "install", "chromium"],
-            capture_output=True, text=True, timeout=300
+            capture_output=True, text=True, timeout=300,
+            env=os.environ,  # передаём PLAYWRIGHT_BROWSERS_PATH в subprocess
         )
+        log.debug(f"stdout: {result.stdout}")
         if result.returncode != 0:
             log.warning(f"playwright install stderr:\n{result.stderr}")
         else:
