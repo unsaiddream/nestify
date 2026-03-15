@@ -83,6 +83,7 @@ if sys.platform == 'darwin':
         strip=False,
         upx=True,
         console=False,
+        argv_emulation=False,  # отключаем — вызывает краши при запуске из Finder
         icon='assets/logo.png',
     )
     coll = COLLECT(
@@ -106,6 +107,9 @@ if sys.platform == 'darwin':
             'CFBundleShortVersionString': '0.1.0',
             'CFBundleVersion': '0.1.0',
             'LSUIElement': False,
+            # Разрешаем запись в домашнюю папку (для логов и БД)
+            'NSDesktopFolderUsageDescription': 'Nestify сохраняет данные локально',
+            'NSDocumentsFolderUsageDescription': 'Nestify сохраняет данные локально',
         },
     )
 
