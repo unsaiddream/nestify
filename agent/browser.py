@@ -12,7 +12,9 @@ from typing import AsyncGenerator
 
 from playwright.async_api import async_playwright, BrowserContext, Page
 
-PROFILE_DIR = Path(__file__).parent.parent / "browser_profile"
+# Профиль хранится в ~/Library/Application Support/Nestify/browser_profile
+# (а не рядом с кодом) — чтобы работало из read-only .app bundle
+PROFILE_DIR = Path.home() / "Library" / "Application Support" / "Nestify" / "browser_profile"
 KRISHA_BASE = "https://krisha.kz"
 
 _playwright = None
