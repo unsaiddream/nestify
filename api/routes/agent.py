@@ -75,24 +75,63 @@ async def stop_agent():
 
 @router.post("/install-playwright")
 async def install_playwright():
-    """Запускает 'playwright install chromium' — скачивает браузер."""
+    """Скачивает Chromium через playwright driver — работает на любом Mac."""
     import asyncio.subprocess as asp
+    import os
+    import sys
+    from pathlib import Path
+
+    env = os.environ.copy()
+
+    # PLAYWRIGHT_BROWSERS_PATH — куда ставить браузер.
+    # Берём из окружения (main.py уже устанавливает) или задаём сами.
+    browsers_path = env.get("PLAYWRIGHT_BROWSERS_PATH") or str(
+        Path.home() / "Library" / "Application Support" / "Nestify" / "browsers"
+    )
+    Path(browsers_path).mkdir(parents=True, exist_ok=True)
+    env["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+
+    # Ищем playwright driver: сначала через внутреннее API пакета,
+    # потом через sys.executable (pip install playwright добавляет скрипт рядом),
+    # потом через PATH.
+    driver: str | None = None
     try:
+        from playwright._impl._driver import compute_driver_executable
+        driver = str(compute_driver_executable())
+    except Exception:
+        pass
+
+    if not driver:
+        # Путь рядом с текущим python-интерпретатором (venv / frozen)
+        bin_dir = Path(sys.executable).parent
+        for candidate in ["playwright", "playwright.exe"]:
+            p = bin_dir / candidate
+            if p.exists():
+                driver = str(p)
+                break
+
+    try:
+        if driver:
+            # Используем playwright driver напрямую
+            cmd = [driver, "install", "chromium"]
+        else:
+            # Fallback: запускаем как модуль Python
+            cmd = [sys.executable, "-m", "playwright", "install", "chromium"]
+
         proc = await asp.create_subprocess_exec(
-            "playwright", "install", "chromium",
+            *cmd,
             stdout=asp.PIPE,
             stderr=asp.STDOUT,
+            env=env,
         )
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=180)
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=300)
         output = stdout.decode(errors="replace") if stdout else ""
         if proc.returncode == 0:
             return {"status": "ok", "message": "Chromium успешно установлен", "output": output}
         else:
             return {"status": "error", "message": "Ошибка установки", "output": output}
     except asyncio.TimeoutError:
-        return {"status": "error", "message": "Таймаут — установка заняла слишком долго"}
-    except FileNotFoundError:
-        return {"status": "error", "message": "Команда 'playwright' не найдена. Запустите: pip install playwright"}
+        return {"status": "error", "message": "Таймаут — установка заняла слишком долго (>5 мин)"}
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
