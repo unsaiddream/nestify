@@ -27,12 +27,5 @@
   },
   "tags": ["real-estate", "automation", "krisha", "kazakhstan", "browser-automation"],
   "category": "automation",
-  "uses_agents": ["gemini"],
-  "example_input": {
-    "district": "Алматы, Бостандыкский район",
-    "budget_min": 50000,
-    "budget_max": 150000,
-    "area_min": 40,
-    "property_type": "квартира"
-  }
+  "uses_agents": ["gemini"]
 }
