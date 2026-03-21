@@ -1,0 +1,31 @@
+{
+  "name": "nestify",
+  "version": "1.0.0",
+  "description": "AI агент для риелторов — автоматизирует поиск объявлений и отправку сообщений на Krisha.kz",
+  "author": "YOUR_WALLET_ADDRESS",
+  "entrypoint": "main.py",
+  "runtime": "python3.11",
+  "price_per_call": 0.001,
+  "timeout_seconds": 30,
+  "input_schema": {
+    "type": "object",
+    "properties": {
+      "district": { "type": "string", "description": "Район поиска" },
+      "budget_min": { "type": "number", "description": "Минимальный бюджет" },
+      "budget_max": { "type": "number", "description": "Максимальный бюджет" },
+      "area_min": { "type": "number", "description": "Минимальный метраж" },
+      "property_type": { "type": "string", "description": "Тип недвижимости" }
+    }
+  },
+  "output_schema": {
+    "type": "object",
+    "properties": {
+      "listings_found": { "type": "number" },
+      "messages_sent": { "type": "number" },
+      "listings": { "type": "array" }
+    }
+  },
+  "tags": ["real-estate", "automation", "krisha", "kazakhstan", "browser-automation"],
+  "category": "automation",
+  "uses_agents": ["gemini"]
+}
