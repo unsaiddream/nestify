@@ -2,7 +2,7 @@
   "name": "nestify",
   "version": "1.0.0",
   "description": "AI агент для риелторов — автоматизирует поиск объявлений и отправку сообщений на Krisha.kz",
-  "author": "YOUR_WALLET_ADDRESS",
+  "author": "2qTXr7ZoXqNmerqiYDfUZGAQV1KCrm239CZZL5MJHqxC",
   "entrypoint": "main.py",
   "runtime": "python3.11",
   "price_per_call": 0.001,
